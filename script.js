@@ -2,7 +2,7 @@
 const API_URL = 'https://cotacoes-frete-back.onrender.com/api/cotacoes';
 const STORAGE_KEY = 'cotacoes_frete';
 const POLLING_INTERVAL = 5000; // Aumentado para 5 segundos
-const API_TOKEN = 'cotacoes_frete_token_secreto_2025';
+const API_TOKEN = 'ctf_2025_Xk7mP9wL3nQ8zR5tY2jH6vB4cN1sF0gD';
 
 let cotacoes = [];
 let isOnline = false;
@@ -480,3 +480,4 @@ function showMessage(message, type) {
         setTimeout(() => div.remove(), 300);
     }, 3000);
 }
+
