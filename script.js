@@ -131,9 +131,11 @@ function updateConnectionStatus() {
     }
 }
 
+// ✅ FUNÇÃO CORRIGIDA - SALVA NO LOCALSTORAGE
 function saveToLocalStorage(data) {
     try {
         const cotacoesData = JSON.stringify(data);
+        localStorage.setItem(STORAGE_KEY, cotacoesData);
         return true;
     } catch (error) {
         console.error('Erro ao salvar:', error);
@@ -141,9 +143,11 @@ function saveToLocalStorage(data) {
     }
 }
 
+// ✅ FUNÇÃO CORRIGIDA - CARREGA DO LOCALSTORAGE
 function loadFromLocalStorage() {
     try {
-        return [];
+        const stored = localStorage.getItem(STORAGE_KEY);
+        return stored ? JSON.parse(stored) : [];
     } catch (error) {
         console.error('Erro ao carregar:', error);
         return [];
@@ -163,6 +167,7 @@ async function loadCotacoes() {
             const response = await fetch(`${API_URL}/cotacoes`);
             if (!response.ok) throw new Error('Erro ao carregar cotações');
             cotacoes = await response.json();
+            saveToLocalStorage(cotacoes); // ✅ SALVA AO CARREGAR DO SERVIDOR
         } else {
             cotacoes = loadFromLocalStorage();
         }
@@ -218,6 +223,7 @@ async function handleSubmit(event) {
                 cotacoes.unshift(novaCotacao);
                 showMessage('✓ Cotação salva (Offline)', 'success');
             }
+            saveToLocalStorage(cotacoes); // ✅ SALVA NO MODO OFFLINE
             filterCotacoes();
         }
         
@@ -290,12 +296,14 @@ async function deleteCotacao(id) {
             await loadCotacoes();
         } else {
             cotacoes = cotacoes.filter(c => c.id !== id);
+            saveToLocalStorage(cotacoes); // ✅ SALVA APÓS EXCLUIR NO MODO OFFLINE
             showMessage('✓ Cotação excluída (Offline)', 'success');
             filterCotacoes();
         }
     } catch (error) {
         console.error('Erro:', error);
         cotacoes = cotacoes.filter(c => c.id !== id);
+        saveToLocalStorage(cotacoes); // ✅ SALVA APÓS ERRO
         showMessage('⚠️ Erro no servidor. Cotação excluída localmente.', 'error');
         filterCotacoes();
     }
@@ -321,11 +329,13 @@ async function toggleNegocio(id) {
             showMessage(cotacao.negocioFechado ? '✓ Negócio marcado como fechado!' : '✓ Marcação removida!', 'success');
             await loadCotacoes();
         } else {
+            saveToLocalStorage(cotacoes); // ✅ SALVA APÓS TOGGLE NO MODO OFFLINE
             showMessage(cotacao.negocioFechado ? '✓ Negócio marcado (Offline)' : '✓ Marcação removida (Offline)', 'success');
             filterCotacoes();
         }
     } catch (error) {
         console.error('Erro:', error);
+        saveToLocalStorage(cotacoes); // ✅ SALVA APÓS ERRO
         filterCotacoes();
     }
 }
@@ -496,6 +506,4 @@ setInterval(async () => {
         showMessage('Conexão restaurada! Sincronizando...', 'success');
         await loadCotacoes();
     }
-
 }, 5000);
-
