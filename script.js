@@ -1,4 +1,4 @@
-const API_URL = 'https://cotacoes-frete-back.onrender.com/';
+const API_URL = 'https://cotacoes-frete-back.onrender.com';
 const STORAGE_KEY = 'cotacoes_frete';
 const POLLING_INTERVAL = 2000;
 
@@ -498,3 +498,4 @@ setInterval(async () => {
     }
 
 }, 5000);
+
