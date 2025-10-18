@@ -481,4 +481,42 @@ function showMessage(message, type) {
     }, 3000);
 }
 
+// ==========================================
+// KEEP-ALIVE: Evita hibernação do Render
+// ==========================================
+// Adicione este código no final do script.js
+
+// Configuração
+const KEEP_ALIVE_INTERVAL = 14 * 60 * 1000; // 14 minutos
+const HEALTH_CHECK_URL = 'https://cotacoes-frete-back.onrender.com/health';
+
+// Função para manter o backend ativo
+async function keepBackendAlive() {
+    try {
+        const response = await fetch(HEALTH_CHECK_URL, {
+            method: 'GET',
+            cache: 'no-cache'
+        });
+        
+        if (response.ok) {
+            console.log('✅ Backend mantido ativo:', new Date().toLocaleTimeString());
+        }
+    } catch (error) {
+        console.log('⚠️ Erro ao pingar backend:', error.message);
+    }
+}
+
+// Iniciar keep-alive quando a página carregar
+function initKeepAlive() {
+    // Primeira chamada imediata
+    keepBackendAlive();
+    
+    // Repetir a cada 14 minutos
+    setInterval(keepBackendAlive, KEEP_ALIVE_INTERVAL);
+}
+
+// Adicione esta linha no final do DOMContentLoaded:
+// initKeepAlive();
+
+
 
