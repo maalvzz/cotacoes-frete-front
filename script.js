@@ -1124,3 +1124,4 @@ document.getElementById('filterTransportadora').addEventListener('change', filte
 document.getElementById('filterStatus').addEventListener('change', filterCotacoes);
 
 
+
