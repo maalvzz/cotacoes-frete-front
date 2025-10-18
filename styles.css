@@ -296,6 +296,13 @@ td {
     color: var(--success-color);
 }
 
+/* ==========================================
+   OCULTAR MENSAGENS DO CANTO INFERIOR ESQUERDO
+   ========================================== */
+.message {
+    display: none !important;
+}
+
 .status-message {
     padding: 14px;
     margin-bottom: 1rem;
