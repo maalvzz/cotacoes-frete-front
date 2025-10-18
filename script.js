@@ -1,13 +1,14 @@
 // ✅ CONFIGURAÇÕES GERAIS
 const API_URL = 'https://cotacoes-frete-back.onrender.com/api/cotacoes';
 const STORAGE_KEY = 'cotacoes_frete';
-const POLLING_INTERVAL = 2000;
+const POLLING_INTERVAL = 5000; // Aumentado para 5 segundos
 const API_TOKEN = 'cotacoes_frete_token_secreto_2025';
 
 let cotacoes = [];
 let isOnline = false;
 let currentMonth = new Date().getMonth();
 let currentYear = new Date().getFullYear();
+let isSubmitting = false; // Prevenir múltiplos submits
 
 const meses = [
     'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -63,7 +64,7 @@ function changeMonth(direction) {
 // ==========================================
 function startRealtimeSync() {
     setInterval(async () => {
-        if (isOnline) await checkForUpdates();
+        if (isOnline && !isSubmitting) await checkForUpdates();
     }, POLLING_INTERVAL);
 }
 
@@ -120,7 +121,10 @@ function showRealtimeUpdate() {
 // ==========================================
 async function checkServerStatus() {
     try {
-        const response = await fetchComAutenticacao(API_URL, { method: 'HEAD' });
+        const response = await fetch(`${API_URL.replace('/api/cotacoes', '/health')}`, { 
+            method: 'GET',
+            cache: 'no-cache'
+        });
         isOnline = response.ok;
         updateConnectionStatus();
         return isOnline;
@@ -198,6 +202,18 @@ async function loadCotacoes() {
 async function handleSubmit(event) {
     event.preventDefault();
 
+    // Prevenir múltiplos submits
+    if (isSubmitting) {
+        console.log('Aguarde... processando requisição anterior');
+        return;
+    }
+
+    isSubmitting = true;
+    const submitBtn = document.querySelector('button[type="submit"]');
+    const originalText = submitBtn.innerHTML;
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '⏳ Processando...';
+
     const formData = getFormData();
     const editId = document.getElementById('editId').value;
     const serverOnline = await checkServerStatus();
@@ -210,27 +226,30 @@ async function handleSubmit(event) {
                     method: 'PUT',
                     body: JSON.stringify(formData)
                 });
-                showMessage('✓ Cotação atualizada!', 'success');
+                showMessage('✔ Cotação atualizada!', 'success');
             } else {
                 response = await fetchComAutenticacao(API_URL, {
                     method: 'POST',
                     body: JSON.stringify(formData)
                 });
-                showMessage('✓ Cotação registrada!', 'success');
+                showMessage('✔ Cotação registrada!', 'success');
             }
 
             if (!response.ok) throw new Error('Erro ao salvar');
+            
+            // Aguardar um pouco antes de recarregar para evitar duplicação
+            await new Promise(resolve => setTimeout(resolve, 500));
             await loadCotacoes();
         } else {
             // modo offline
             if (editId) {
                 const index = cotacoes.findIndex(c => c.id === editId);
                 if (index !== -1) cotacoes[index] = { ...formData, id: editId, timestamp: cotacoes[index].timestamp };
-                showMessage('✓ Cotação atualizada (Offline)', 'success');
+                showMessage('✔ Cotação atualizada (Offline)', 'success');
             } else {
                 const novaCotacao = { ...formData, id: Date.now().toString(), timestamp: new Date().toISOString() };
                 cotacoes.unshift(novaCotacao);
-                showMessage('✓ Cotação salva (Offline)', 'success');
+                showMessage('✔ Cotação salva (Offline)', 'success');
             }
             saveToLocalStorage(cotacoes);
             filterCotacoes();
@@ -240,26 +259,59 @@ async function handleSubmit(event) {
     } catch (error) {
         console.error('Erro:', error);
         showMessage('❌ Erro ao processar cotação', 'error');
+    } finally {
+        isSubmitting = false;
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = originalText;
     }
 }
 
 // ==========================================
 // CRUD: EDIÇÃO / EXCLUSÃO / STATUS
 // ==========================================
+function editCotacao(id) {
+    const cotacao = cotacoes.find(c => c.id === id);
+    if (!cotacao) return;
+
+    document.getElementById('editId').value = id;
+    document.getElementById('responsavelCotacao').value = cotacao.responsavelCotacao;
+    document.getElementById('transportadora').value = cotacao.transportadora;
+    document.getElementById('destino').value = cotacao.destino || '';
+    document.getElementById('numeroCotacao').value = cotacao.numeroCotacao || '';
+    document.getElementById('valorFrete').value = cotacao.valorFrete;
+    document.getElementById('vendedor').value = cotacao.vendedor || '';
+    document.getElementById('numeroDocumento').value = cotacao.numeroDocumento || '';
+    document.getElementById('previsaoEntrega').value = cotacao.previsaoEntrega || '';
+    document.getElementById('canalComunicacao').value = cotacao.canalComunicacao || '';
+    document.getElementById('codigoColeta').value = cotacao.codigoColeta || '';
+    document.getElementById('responsavelTransportadora').value = cotacao.responsavelTransportadora || '';
+    document.getElementById('dataCotacao').value = cotacao.dataCotacao;
+    document.getElementById('observacoes').value = cotacao.observacoes || '';
+
+    document.getElementById('formTitle').textContent = 'Editar Cotação';
+    document.getElementById('submitIcon').textContent = '✏️';
+    document.getElementById('submitText').textContent = 'Atualizar Cotação';
+    document.getElementById('cancelBtn').classList.remove('hidden');
+    document.getElementById('formCard').classList.remove('hidden');
+    
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
 async function deleteCotacao(id) {
     if (!confirm('Tem certeza que deseja excluir esta cotação?')) return;
+    
     const serverOnline = await checkServerStatus();
 
     try {
         if (serverOnline) {
             const response = await fetchComAutenticacao(`${API_URL}/${id}`, { method: 'DELETE' });
             if (!response.ok) throw new Error('Erro ao excluir');
-            showMessage('✓ Cotação excluída!', 'success');
+            showMessage('✔ Cotação excluída!', 'success');
             await loadCotacoes();
         } else {
             cotacoes = cotacoes.filter(c => c.id !== id);
             saveToLocalStorage(cotacoes);
-            showMessage('✓ Cotação excluída (Offline)', 'success');
+            showMessage('✔ Cotação excluída (Offline)', 'success');
             filterCotacoes();
         }
     } catch (error) {
@@ -284,11 +336,11 @@ async function toggleNegocio(id) {
                 body: JSON.stringify(cotacao)
             });
             if (!response.ok) throw new Error('Erro ao atualizar');
-            showMessage(cotacao.negocioFechado ? '✓ Negócio fechado!' : '✓ Marcação removida!', 'success');
+            showMessage(cotacao.negocioFechado ? '✔ Negócio fechado!' : '✔ Marcação removida!', 'success');
             await loadCotacoes();
         } else {
             saveToLocalStorage(cotacoes);
-            showMessage(cotacao.negocioFechado ? '✓ Negócio marcado (Offline)' : '✓ Marcação removida (Offline)', 'success');
+            showMessage(cotacao.negocioFechado ? '✔ Negócio marcado (Offline)' : '✔ Marcação removida (Offline)', 'success');
             filterCotacoes();
         }
     } catch (error) {
@@ -324,7 +376,7 @@ function resetForm() {
     document.getElementById('cotacaoForm').reset();
     document.getElementById('editId').value = '';
     document.getElementById('formTitle').textContent = 'Nova Cotação';
-    document.getElementById('submitIcon').textContent = '✓';
+    document.getElementById('submitIcon').textContent = '✔';
     document.getElementById('submitText').textContent = 'Registrar Cotação';
     document.getElementById('cancelBtn').classList.add('hidden');
     setTodayDate();
@@ -393,7 +445,7 @@ function renderCotacoes(filtered) {
             <tbody>
                 ${filtered.map(c => `
                     <tr class="${c.negocioFechado ? 'negocio-fechado' : ''}">
-                        <td><button class="small ${c.negocioFechado ? 'success' : 'secondary'}" onclick="toggleNegocio('${c.id}')">✓</button></td>
+                        <td><button class="small ${c.negocioFechado ? 'success' : 'secondary'}" onclick="toggleNegocio('${c.id}')">✔</button></td>
                         <td><span class="badge ${c.negocioFechado ? 'fechado' : ''}">${c.responsavelCotacao}</span></td>
                         <td>${c.transportadora}</td><td>${c.destino || 'Não Informado'}</td>
                         <td>${c.numeroCotacao}</td><td class="valor">R$ ${c.valorFrete.toFixed(2)}</td>
