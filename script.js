@@ -1,5 +1,5 @@
-// ✅ API_URL CORRIGIDO
-const API_URL = 'https://cotacoes-frete-back.onrender.com/api';
+// ✅ CONFIGURAÇÕES GERAIS
+const API_URL = 'https://cotacoes-frete-back.onrender.com/api/cotacoes';
 const STORAGE_KEY = 'cotacoes_frete';
 const POLLING_INTERVAL = 2000;
 const API_TOKEN = 'cotacoes_frete_token_secreto_2025';
@@ -15,7 +15,7 @@ const meses = [
 ];
 
 // ==========================================
-// FUNÇÃO AUXILIAR PARA REQUISIÇÕES
+// FUNÇÃO AUXILIAR PARA REQUISIÇÕES COM TOKEN
 // ==========================================
 async function fetchComAutenticacao(url, options = {}) {
     const headers = {
@@ -58,22 +58,21 @@ function changeMonth(direction) {
     filterCotacoes();
 }
 
+// ==========================================
+// SINCRONIZAÇÃO EM TEMPO REAL
+// ==========================================
 function startRealtimeSync() {
     setInterval(async () => {
-        if (isOnline) {
-            await checkForUpdates();
-        }
+        if (isOnline) await checkForUpdates();
     }, POLLING_INTERVAL);
 }
 
 async function checkForUpdates() {
     try {
-        const response = await fetchComAutenticacao(`${API_URL}/cotacoes`);
-        
+        const response = await fetchComAutenticacao(API_URL);
         if (!response.ok) return;
-        
+
         const serverData = await response.json();
-        
         if (hasDataChanged(serverData)) {
             cotacoes = serverData;
             saveToLocalStorage(cotacoes);
@@ -87,23 +86,19 @@ async function checkForUpdates() {
 
 function hasDataChanged(newData) {
     if (cotacoes.length !== newData.length) return true;
-    
+
     const currentIds = new Set(cotacoes.map(c => c.id));
     const newIds = new Set(newData.map(c => c.id));
-    
+
     if (currentIds.size !== newIds.size) return true;
-    
-    for (let id of newIds) {
-        if (!currentIds.has(id)) return true;
-    }
-    
+
+    for (let id of newIds) if (!currentIds.has(id)) return true;
+
     for (let newItem of newData) {
         const oldItem = cotacoes.find(c => c.id === newItem.id);
-        if (oldItem && JSON.stringify(oldItem) !== JSON.stringify(newItem)) {
-            return true;
-        }
+        if (oldItem && JSON.stringify(oldItem) !== JSON.stringify(newItem)) return true;
     }
-    
+
     return false;
 }
 
@@ -112,7 +107,7 @@ function showRealtimeUpdate() {
     notification.className = 'realtime-notification';
     notification.innerHTML = '✅ Dados atualizados';
     document.body.appendChild(notification);
-    
+
     setTimeout(() => notification.classList.add('show'), 100);
     setTimeout(() => {
         notification.classList.remove('show');
@@ -120,11 +115,12 @@ function showRealtimeUpdate() {
     }, 3000);
 }
 
+// ==========================================
+// VERIFICAÇÃO DE STATUS DO SERVIDOR
+// ==========================================
 async function checkServerStatus() {
     try {
-        const response = await fetchComAutenticacao(`${API_URL}/cotacoes`, { 
-            method: 'HEAD'
-        });
+        const response = await fetchComAutenticacao(API_URL, { method: 'HEAD' });
         isOnline = response.ok;
         updateConnectionStatus();
         return isOnline;
@@ -137,6 +133,8 @@ async function checkServerStatus() {
 
 function updateConnectionStatus() {
     const statusDiv = document.getElementById('connectionStatus');
+    if (!statusDiv) return;
+
     if (isOnline) {
         statusDiv.className = 'connection-status online';
         statusDiv.querySelector('span:last-child').textContent = 'Online';
@@ -146,6 +144,9 @@ function updateConnectionStatus() {
     }
 }
 
+// ==========================================
+// LOCAL STORAGE
+// ==========================================
 function saveToLocalStorage(data) {
     try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
@@ -166,6 +167,9 @@ function loadFromLocalStorage() {
     }
 }
 
+// ==========================================
+// FUNÇÕES PRINCIPAIS
+// ==========================================
 function setTodayDate() {
     const today = new Date().toISOString().split('T')[0];
     document.getElementById('dataCotacao').value = today;
@@ -173,10 +177,9 @@ function setTodayDate() {
 
 async function loadCotacoes() {
     const serverOnline = await checkServerStatus();
-    
     try {
         if (serverOnline) {
-            const response = await fetchComAutenticacao(`${API_URL}/cotacoes`);
+            const response = await fetchComAutenticacao(API_URL);
             if (!response.ok) throw new Error('Erro ao carregar cotações');
             cotacoes = await response.json();
             saveToLocalStorage(cotacoes);
@@ -194,50 +197,45 @@ async function loadCotacoes() {
 
 async function handleSubmit(event) {
     event.preventDefault();
-    
+
     const formData = getFormData();
     const editId = document.getElementById('editId').value;
     const serverOnline = await checkServerStatus();
-    
+
     try {
         if (serverOnline) {
             let response;
             if (editId) {
-                response = await fetchComAutenticacao(`${API_URL}/cotacoes/${editId}`, {
+                response = await fetchComAutenticacao(`${API_URL}/${editId}`, {
                     method: 'PUT',
                     body: JSON.stringify(formData)
                 });
                 showMessage('✓ Cotação atualizada!', 'success');
             } else {
-                response = await fetchComAutenticacao(`${API_URL}/cotacoes`, {
+                response = await fetchComAutenticacao(API_URL, {
                     method: 'POST',
                     body: JSON.stringify(formData)
                 });
                 showMessage('✓ Cotação registrada!', 'success');
             }
-            
+
             if (!response.ok) throw new Error('Erro ao salvar');
             await loadCotacoes();
         } else {
+            // modo offline
             if (editId) {
                 const index = cotacoes.findIndex(c => c.id === editId);
-                if (index !== -1) {
-                    cotacoes[index] = { ...formData, id: editId, timestamp: cotacoes[index].timestamp };
-                }
+                if (index !== -1) cotacoes[index] = { ...formData, id: editId, timestamp: cotacoes[index].timestamp };
                 showMessage('✓ Cotação atualizada (Offline)', 'success');
             } else {
-                const novaCotacao = {
-                    ...formData,
-                    id: Date.now().toString(),
-                    timestamp: new Date().toISOString()
-                };
+                const novaCotacao = { ...formData, id: Date.now().toString(), timestamp: new Date().toISOString() };
                 cotacoes.unshift(novaCotacao);
                 showMessage('✓ Cotação salva (Offline)', 'success');
             }
             saveToLocalStorage(cotacoes);
             filterCotacoes();
         }
-        
+
         resetForm();
     } catch (error) {
         console.error('Erro:', error);
@@ -245,63 +243,16 @@ async function handleSubmit(event) {
     }
 }
 
-function getFormData() {
-    return {
-        responsavelCotacao: document.getElementById('responsavelCotacao').value,
-        transportadora: document.getElementById('transportadora').value,
-        destino: document.getElementById('destino').value,
-        numeroCotacao: document.getElementById('numeroCotacao').value || 'Não Informado',
-        valorFrete: parseFloat(document.getElementById('valorFrete').value),
-        vendedor: document.getElementById('vendedor').value || 'Não Informado',
-        numeroDocumento: document.getElementById('numeroDocumento').value || 'Não Informado',
-        previsaoEntrega: document.getElementById('previsaoEntrega').value || 'Não Informado',
-        canalComunicacao: document.getElementById('canalComunicacao').value || 'Não Informado',
-        codigoColeta: document.getElementById('codigoColeta').value || 'Não Informado',
-        responsavelTransportadora: document.getElementById('responsavelTransportadora').value || 'Não Informado',
-        dataCotacao: document.getElementById('dataCotacao').value,
-        observacoes: document.getElementById('observacoes').value || '',
-        negocioFechado: false
-    };
-}
-
-function editCotacao(id) {
-    const cotacao = cotacoes.find(c => c.id === id);
-    if (!cotacao) return;
-
-    document.getElementById('formCard').classList.remove('hidden');
-    document.getElementById('editId').value = cotacao.id;
-    document.getElementById('responsavelCotacao').value = cotacao.responsavelCotacao;
-    document.getElementById('transportadora').value = cotacao.transportadora;
-    document.getElementById('destino').value = cotacao.destino || '';
-    document.getElementById('numeroCotacao').value = cotacao.numeroCotacao === 'Não Informado' ? '' : cotacao.numeroCotacao;
-    document.getElementById('valorFrete').value = cotacao.valorFrete;
-    document.getElementById('vendedor').value = cotacao.vendedor === 'Não Informado' ? '' : cotacao.vendedor;
-    document.getElementById('numeroDocumento').value = cotacao.numeroDocumento === 'Não Informado' ? '' : cotacao.numeroDocumento;
-    document.getElementById('previsaoEntrega').value = cotacao.previsaoEntrega === 'Não Informado' ? '' : cotacao.previsaoEntrega;
-    document.getElementById('canalComunicacao').value = cotacao.canalComunicacao === 'Não Informado' ? '' : cotacao.canalComunicacao;
-    document.getElementById('codigoColeta').value = cotacao.codigoColeta === 'Não Informado' ? '' : cotacao.codigoColeta;
-    document.getElementById('responsavelTransportadora').value = cotacao.responsavelTransportadora === 'Não Informado' ? '' : cotacao.responsavelTransportadora;
-    document.getElementById('dataCotacao').value = cotacao.dataCotacao;
-    document.getElementById('observacoes').value = cotacao.observacoes;
-    document.getElementById('formTitle').textContent = 'Editar Cotação';
-    document.getElementById('submitIcon').textContent = '💾';
-    document.getElementById('submitText').textContent = 'Salvar Alterações';
-    document.getElementById('cancelBtn').classList.remove('hidden');
-
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-}
-
+// ==========================================
+// CRUD: EDIÇÃO / EXCLUSÃO / STATUS
+// ==========================================
 async function deleteCotacao(id) {
     if (!confirm('Tem certeza que deseja excluir esta cotação?')) return;
-
     const serverOnline = await checkServerStatus();
-    
+
     try {
         if (serverOnline) {
-            const response = await fetchComAutenticacao(`${API_URL}/cotacoes/${id}`, {
-                method: 'DELETE'
-            });
-            
+            const response = await fetchComAutenticacao(`${API_URL}/${id}`, { method: 'DELETE' });
             if (!response.ok) throw new Error('Erro ao excluir');
             showMessage('✓ Cotação excluída!', 'success');
             await loadCotacoes();
@@ -323,18 +274,15 @@ async function deleteCotacao(id) {
 async function toggleNegocio(id) {
     const cotacao = cotacoes.find(c => c.id === id);
     if (!cotacao) return;
-
     cotacao.negocioFechado = !cotacao.negocioFechado;
-    
+
     const serverOnline = await checkServerStatus();
-    
     try {
         if (serverOnline) {
-            const response = await fetchComAutenticacao(`${API_URL}/cotacoes/${id}`, {
+            const response = await fetchComAutenticacao(`${API_URL}/${id}`, {
                 method: 'PUT',
                 body: JSON.stringify(cotacao)
             });
-            
             if (!response.ok) throw new Error('Erro ao atualizar');
             showMessage(cotacao.negocioFechado ? '✓ Negócio fechado!' : '✓ Marcação removida!', 'success');
             await loadCotacoes();
@@ -350,6 +298,28 @@ async function toggleNegocio(id) {
     }
 }
 
+// ==========================================
+// INTERFACE E UTILITÁRIOS
+// ==========================================
+function getFormData() {
+    return {
+        responsavelCotacao: document.getElementById('responsavelCotacao').value,
+        transportadora: document.getElementById('transportadora').value,
+        destino: document.getElementById('destino').value,
+        numeroCotacao: document.getElementById('numeroCotacao').value || 'Não Informado',
+        valorFrete: parseFloat(document.getElementById('valorFrete').value),
+        vendedor: document.getElementById('vendedor').value || 'Não Informado',
+        numeroDocumento: document.getElementById('numeroDocumento').value || 'Não Informado',
+        previsaoEntrega: document.getElementById('previsaoEntrega').value || 'Não Informado',
+        canalComunicacao: document.getElementById('canalComunicacao').value || 'Não Informado',
+        codigoColeta: document.getElementById('codigoColeta').value || 'Não Informado',
+        responsavelTransportadora: document.getElementById('responsavelTransportadora').value || 'Não Informado',
+        dataCotacao: document.getElementById('dataCotacao').value,
+        observacoes: document.getElementById('observacoes').value || '',
+        negocioFechado: false
+    };
+}
+
 function resetForm() {
     document.getElementById('cotacaoForm').reset();
     document.getElementById('editId').value = '';
@@ -360,22 +330,14 @@ function resetForm() {
     setTodayDate();
 }
 
-function cancelEdit() {
-    resetForm();
-}
+function cancelEdit() { resetForm(); }
 
 function toggleForm() {
     const formCard = document.getElementById('formCard');
     const button = event.currentTarget;
-    
     formCard.classList.toggle('hidden');
-    
-    if (!formCard.classList.contains('hidden')) {
-        button.textContent = 'Ocultar Formulário';
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-    } else {
-        button.textContent = 'Nova Cotação';
-    }
+    button.textContent = formCard.classList.contains('hidden') ? 'Nova Cotação' : 'Ocultar Formulário';
+    if (!formCard.classList.contains('hidden')) window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 function filterCotacoes() {
@@ -384,14 +346,12 @@ function filterCotacoes() {
     const filterTrans = document.getElementById('filterTransportadora').value;
     const filterStatus = document.getElementById('filterStatus').value;
 
-    let filtered = [...cotacoes];
-
-    filtered = filtered.filter(c => {
+    let filtered = cotacoes.filter(c => {
         const cotacaoDate = new Date(c.dataCotacao);
         return cotacaoDate.getMonth() === currentMonth && cotacaoDate.getFullYear() === currentYear;
     });
 
-    if (searchTerm) {
+    if (searchTerm)
         filtered = filtered.filter(c =>
             c.transportadora.toLowerCase().includes(searchTerm) ||
             c.numeroCotacao.toLowerCase().includes(searchTerm) ||
@@ -401,22 +361,13 @@ function filterCotacoes() {
             c.responsavelTransportadora.toLowerCase().includes(searchTerm) ||
             (c.destino && c.destino.toLowerCase().includes(searchTerm))
         );
-    }
 
-    if (filterResp) {
-        filtered = filtered.filter(c => c.responsavelCotacao === filterResp);
-    }
-
-    if (filterTrans) {
-        filtered = filtered.filter(c => c.transportadora === filterTrans);
-    }
+    if (filterResp) filtered = filtered.filter(c => c.responsavelCotacao === filterResp);
+    if (filterTrans) filtered = filtered.filter(c => c.transportadora === filterTrans);
 
     if (filterStatus) {
-        if (filterStatus === 'fechado') {
-            filtered = filtered.filter(c => c.negocioFechado === true);
-        } else if (filterStatus === 'aberto') {
-            filtered = filtered.filter(c => !c.negocioFechado);
-        }
+        if (filterStatus === 'fechado') filtered = filtered.filter(c => c.negocioFechado);
+        else if (filterStatus === 'aberto') filtered = filtered.filter(c => !c.negocioFechado);
     }
 
     renderCotacoes(filtered);
@@ -424,75 +375,40 @@ function filterCotacoes() {
 
 function renderCotacoes(filtered) {
     const container = document.getElementById('cotacoesContainer');
-    
     if (filtered.length === 0) {
-        container.innerHTML = `
-            <p style="text-align: center; padding: 2rem; color: var(--text-secondary);">
-                Nenhuma cotação encontrada para ${meses[currentMonth]} de ${currentYear}.
-            </p>
-        `;
+        container.innerHTML = `<p style="text-align:center;padding:2rem;color:var(--text-secondary);">Nenhuma cotação encontrada para ${meses[currentMonth]} de ${currentYear}.</p>`;
         return;
     }
 
     filtered.sort((a, b) => new Date(b.timestamp || b.dataCotacao) - new Date(a.timestamp || a.dataCotacao));
-
     const tableHTML = `
         <table>
             <thead>
                 <tr>
-                    <th>Status</th>
-                    <th>Resp.</th>
-                    <th>Transportadora</th>
-                    <th>Destino</th>
-                    <th>Nº Cotação</th>
-                    <th>Valor</th>
-                    <th>Vendedor</th>
-                    <th>Documento</th>
-                    <th>Previsão</th>
-                    <th>Código Coleta</th>
-                    <th>Data</th>
-                    <th>Ações</th>
+                    <th>Status</th><th>Resp.</th><th>Transportadora</th><th>Destino</th><th>Nº Cotação</th>
+                    <th>Valor</th><th>Vendedor</th><th>Documento</th><th>Previsão</th>
+                    <th>Código Coleta</th><th>Data</th><th>Ações</th>
                 </tr>
             </thead>
             <tbody>
                 ${filtered.map(c => `
                     <tr class="${c.negocioFechado ? 'negocio-fechado' : ''}">
-                        <td>
-                            <button 
-                                class="small ${c.negocioFechado ? 'success' : 'secondary'}" 
-                                onclick="toggleNegocio('${c.id}')"
-                                title="${c.negocioFechado ? 'Negócio Fechado' : 'Marcar como Fechado'}"
-                            >
-                                ${c.negocioFechado ? '✓' : '✓'}
-                            </button>
-                        </td>
+                        <td><button class="small ${c.negocioFechado ? 'success' : 'secondary'}" onclick="toggleNegocio('${c.id}')">✓</button></td>
                         <td><span class="badge ${c.negocioFechado ? 'fechado' : ''}">${c.responsavelCotacao}</span></td>
-                        <td>${c.transportadora}</td>
-                        <td>${c.destino || 'Não Informado'}</td>
-                        <td>${c.numeroCotacao}</td>
-                        <td class="valor">R$ ${c.valorFrete.toFixed(2)}</td>
-                        <td>${c.vendedor}</td>
-                        <td>${c.numeroDocumento}</td>
-                        <td>${c.previsaoEntrega}</td>
-                        <td>${c.codigoColeta}</td>
+                        <td>${c.transportadora}</td><td>${c.destino || 'Não Informado'}</td>
+                        <td>${c.numeroCotacao}</td><td class="valor">R$ ${c.valorFrete.toFixed(2)}</td>
+                        <td>${c.vendedor}</td><td>${c.numeroDocumento}</td>
+                        <td>${c.previsaoEntrega}</td><td>${c.codigoColeta}</td>
                         <td>${formatDate(c.dataCotacao)}</td>
                         <td class="actions">
-                            <button class="small secondary" onclick="editCotacao('${c.id}')" title="Editar">✏️</button>
-                            <button class="small danger" onclick="deleteCotacao('${c.id}')" title="Excluir">🗑️</button>
+                            <button class="small secondary" onclick="editCotacao('${c.id}')">✏️</button>
+                            <button class="small danger" onclick="deleteCotacao('${c.id}')">🗑️</button>
                         </td>
                     </tr>
-                    ${c.observacoes ? `
-                        <tr class="observacoes-row ${c.negocioFechado ? 'negocio-fechado' : ''}">
-                            <td colspan="12">
-                                <strong>📝 Observações:</strong> ${c.observacoes}
-                            </td>
-                        </tr>
-                    ` : ''}
+                    ${c.observacoes ? `<tr class="observacoes-row ${c.negocioFechado ? 'negocio-fechado' : ''}"><td colspan="12"><strong>📝 Observações:</strong> ${c.observacoes}</td></tr>` : ''}
                 `).join('')}
             </tbody>
-        </table>
-    `;
-
+        </table>`;
     container.innerHTML = tableHTML;
 }
 
@@ -502,14 +418,13 @@ function formatDate(dateString) {
 }
 
 function showMessage(message, type) {
-    const messageDiv = document.createElement('div');
-    messageDiv.className = `message ${type}`;
-    messageDiv.textContent = message;
-    document.body.appendChild(messageDiv);
-
-    setTimeout(() => messageDiv.classList.add('show'), 100);
+    const div = document.createElement('div');
+    div.className = `message ${type}`;
+    div.textContent = message;
+    document.body.appendChild(div);
+    setTimeout(() => div.classList.add('show'), 100);
     setTimeout(() => {
-        messageDiv.classList.remove('show');
-        setTimeout(() => messageDiv.remove(), 300);
+        div.classList.remove('show');
+        setTimeout(() => div.remove(), 300);
     }, 3000);
 }
