@@ -1,4 +1,4 @@
-const API_URL = 'https://cotacoes-frete-front.onrender.com';
+const API_URL = 'https://cotacoes-frete-back.onrender.com/api';
 const STORAGE_KEY = 'cotacoes_frete';
 const POLLING_INTERVAL = 2000;
 
@@ -1122,4 +1122,5 @@ document.getElementById('search').addEventListener('input', filterCotacoes);
 document.getElementById('filterResponsavel').addEventListener('change', filterCotacoes);
 document.getElementById('filterTransportadora').addEventListener('change', filterCotacoes);
 document.getElementById('filterStatus').addEventListener('change', filterCotacoes);
+
 
