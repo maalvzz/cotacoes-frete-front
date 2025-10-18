@@ -1,4 +1,4 @@
-const API_URL = 'http://192.168.15.10:3001';
+const API_URL = 'https://cotacoes-frete-back.onrender.com/';
 const STORAGE_KEY = 'cotacoes_frete';
 const POLLING_INTERVAL = 2000;
 
@@ -496,4 +496,5 @@ setInterval(async () => {
         showMessage('Conexão restaurada! Sincronizando...', 'success');
         await loadCotacoes();
     }
+
 }, 5000);
