@@ -4,12 +4,11 @@
 const API_URL = 'https://cotacoes-frete-back.onrender.com/api';
 const API_TOKEN = 'cotacoes_frete_token_secreto_2025';
 
-// Cache local para dados
-let cotacoesCache = [];
+let cotacoes = [];
 let currentMonth = new Date();
 
 // ==========================================
-// UTILITÁRIOS
+// FUNÇÕES UTILITÁRIAS
 // ==========================================
 function formatarData(data) {
     if (!data) return '-';
@@ -43,16 +42,15 @@ async function checkConnection() {
     try {
         const response = await fetch(`${API_URL.replace('/api', '')}/health`, {
             method: 'GET',
-            headers: { 'Authorization': `Bearer ${API_TOKEN}` }
+            headers: {
+                'Authorization': `Bearer ${API_TOKEN}`
+            }
         });
         
         if (response.ok) {
             const data = await response.json();
             statusDiv.className = 'connection-status online';
-            statusDiv.innerHTML = `
-                <span class="status-dot"></span>
-                <span>Online ${data.cache === 'connected' ? '⚡ (Cache)' : ''}</span>
-            `;
+            statusDiv.innerHTML = `<span class="status-dot"></span><span>Online ${data.cache === 'connected' ? '⚡' : ''}</span>`;
         } else {
             throw new Error('Erro de conexão');
         }
@@ -63,25 +61,27 @@ async function checkConnection() {
 }
 
 // ==========================================
-// CARREGAR COTAÇÕES (COM CACHE LOCAL)
+// CARREGAR COTAÇÕES (INICIAL)
 // ==========================================
-async function loadCotacoes(showLoading = true) {
+async function loadCotacoes() {
     try {
-        if (showLoading) {
-            document.getElementById('cotacoesContainer').innerHTML = '<p>Carregando...</p>';
-        }
+        document.getElementById('cotacoesContainer').innerHTML = '<p>Carregando...</p>';
 
         const response = await fetch(`${API_URL}/cotacoes`, {
-            headers: { 'Authorization': `Bearer ${API_TOKEN}` }
+            headers: {
+                'Authorization': `Bearer ${API_TOKEN}`
+            }
         });
 
-        if (!response.ok) throw new Error('Erro ao carregar cotações');
+        if (!response.ok) {
+            throw new Error('Erro ao carregar cotações');
+        }
 
-        cotacoesCache = await response.json();
+        cotacoes = await response.json();
         displayCotacoes();
         
     } catch (error) {
-        console.error('Erro:', error);
+        console.error('Erro ao carregar cotações:', error);
         showMessage('Erro ao carregar cotações', 'error');
         document.getElementById('cotacoesContainer').innerHTML = 
             '<p style="color: red;">Erro ao carregar dados. Tente novamente.</p>';
@@ -92,7 +92,7 @@ async function loadCotacoes(showLoading = true) {
 // EXIBIR COTAÇÕES
 // ==========================================
 function displayCotacoes() {
-    const filtered = filterCotacoesByMonth(cotacoesCache);
+    const filtered = filterCotacoesByMonth(cotacoes);
     const container = document.getElementById('cotacoesContainer');
     
     updateMonthDisplay();
@@ -117,7 +117,7 @@ function displayCotacoes() {
             </thead>
             <tbody>
                 ${filtered.map(c => `
-                    <tr class="${c.negocioFechado ? 'negocio-fechado' : ''}" data-id="${c.id}">
+                    <tr class="${c.negocioFechado ? 'negocio-fechado' : ''}" id="row-${c.id}">
                         <td>${formatarData(c.dataCotacao)}</td>
                         <td>${c.responsavelCotacao}</td>
                         <td>${c.transportadora}</td>
@@ -145,7 +145,7 @@ function displayCotacoes() {
 }
 
 // ==========================================
-// CRIAR COTAÇÃO (OTIMISTA)
+// CRIAR/ATUALIZAR COTAÇÃO (INSTANTÂNEO)
 // ==========================================
 async function handleSubmit(event) {
     event.preventDefault();
@@ -168,164 +168,199 @@ async function handleSubmit(event) {
         negocioFechado: false
     };
 
-    try {
-        if (editId) {
-            // ATUALIZAR
-            await updateCotacaoOptimistic(editId, formData);
-        } else {
-            // CRIAR NOVO
-            await createCotacaoOptimistic(formData);
-        }
-        
-        // Limpar formulário e ocultar
-        document.getElementById('cotacaoForm').reset();
-        document.getElementById('formCard').classList.add('hidden');
-        document.getElementById('editId').value = '';
-        document.getElementById('cancelBtn').classList.add('hidden');
-        
-    } catch (error) {
-        console.error('Erro:', error);
-        showMessage('Erro ao salvar cotação', 'error');
-        // Recarregar do servidor em caso de erro
-        await loadCotacoes(false);
+    if (editId) {
+        // EDITAR - Atualização instantânea
+        await updateCotacaoInstant(editId, formData);
+    } else {
+        // CRIAR - Criação instantânea
+        await createCotacaoInstant(formData);
     }
+    
+    // Limpar e fechar formulário IMEDIATAMENTE
+    document.getElementById('cotacaoForm').reset();
+    document.getElementById('formCard').classList.add('hidden');
+    document.getElementById('editId').value = '';
+    document.getElementById('cancelBtn').classList.add('hidden');
+    document.getElementById('formTitle').textContent = 'Nova Cotação';
+    document.getElementById('submitText').textContent = 'Registrar Cotação';
 }
 
-// Criar com atualização otimista
-async function createCotacaoOptimistic(formData) {
-    // 1. Criar objeto temporário com ID único
-    const tempCotacao = {
+// CRIAR com UI instantânea
+async function createCotacaoInstant(formData) {
+    // 1. Criar ID temporário
+    const tempId = 'temp_' + Date.now();
+    const novaCotacao = {
         ...formData,
-        id: 'temp_' + Date.now(),
+        id: tempId,
         timestamp: new Date().toISOString()
     };
     
-    // 2. Adicionar ao cache local IMEDIATAMENTE
-    cotacoesCache.unshift(tempCotacao);
+    // 2. Adicionar na lista LOCAL imediatamente
+    cotacoes.unshift(novaCotacao);
+    
+    // 3. Atualizar interface IMEDIATAMENTE
     displayCotacoes();
-    showMessage('✅ Cotação criada!', 'success');
+    showMessage('✅ Cotação registrada!', 'success');
     
-    // 3. Enviar ao servidor em background
-    const response = await fetch(`${API_URL}/cotacoes`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${API_TOKEN}`
-        },
-        body: JSON.stringify(formData)
-    });
-    
-    if (!response.ok) throw new Error('Erro ao criar cotação');
-    
-    // 4. Substituir objeto temporário pelo real
-    const novaCotacao = await response.json();
-    const index = cotacoesCache.findIndex(c => c.id === tempCotacao.id);
-    if (index !== -1) {
-        cotacoesCache[index] = novaCotacao;
+    // 4. Enviar ao servidor em BACKGROUND
+    try {
+        const response = await fetch(`${API_URL}/cotacoes`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${API_TOKEN}`
+            },
+            body: JSON.stringify(formData)
+        });
+
+        if (!response.ok) throw new Error('Erro ao salvar no servidor');
+
+        const cotacaoReal = await response.json();
+        
+        // 5. Substituir objeto temporário pelo real
+        const index = cotacoes.findIndex(c => c.id === tempId);
+        if (index !== -1) {
+            cotacoes[index] = cotacaoReal;
+        }
+        
+    } catch (error) {
+        console.error('Erro ao salvar:', error);
+        // Remover cotação temporária em caso de erro
+        cotacoes = cotacoes.filter(c => c.id !== tempId);
+        displayCotacoes();
+        showMessage('❌ Erro ao salvar. Tente novamente.', 'error');
     }
 }
 
-// Atualizar com atualização otimista
-async function updateCotacaoOptimistic(id, formData) {
-    // 1. Encontrar e atualizar localmente IMEDIATAMENTE
-    const index = cotacoesCache.findIndex(c => c.id === id);
-    if (index !== -1) {
-        const backup = {...cotacoesCache[index]};
-        cotacoesCache[index] = { ...cotacoesCache[index], ...formData };
-        displayCotacoes();
-        showMessage('✅ Cotação atualizada!', 'success');
+// ATUALIZAR com UI instantânea
+async function updateCotacaoInstant(id, formData) {
+    const index = cotacoes.findIndex(c => c.id === id);
+    if (index === -1) return;
+    
+    // 1. Guardar backup
+    const backup = {...cotacoes[index]};
+    
+    // 2. Atualizar LOCAL imediatamente
+    cotacoes[index] = {
+        ...cotacoes[index],
+        ...formData
+    };
+    
+    // 3. Atualizar interface IMEDIATAMENTE
+    displayCotacoes();
+    showMessage('✅ Cotação atualizada!', 'success');
+    
+    // 4. Enviar ao servidor em BACKGROUND
+    try {
+        const response = await fetch(`${API_URL}/cotacoes/${id}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${API_TOKEN}`
+            },
+            body: JSON.stringify(formData)
+        });
+
+        if (!response.ok) throw new Error('Erro ao atualizar no servidor');
+
+        const cotacaoAtualizada = await response.json();
+        cotacoes[index] = cotacaoAtualizada;
         
-        // 2. Enviar ao servidor em background
-        try {
-            const response = await fetch(`${API_URL}/cotacoes/${id}`, {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${API_TOKEN}`
-                },
-                body: JSON.stringify(formData)
-            });
-            
-            if (!response.ok) throw new Error('Erro ao atualizar');
-            
-            // 3. Atualizar com resposta real do servidor
-            const updated = await response.json();
-            cotacoesCache[index] = updated;
-            
-        } catch (error) {
-            // Reverter em caso de erro
-            cotacoesCache[index] = backup;
-            displayCotacoes();
-            throw error;
-        }
+    } catch (error) {
+        console.error('Erro ao atualizar:', error);
+        // Reverter em caso de erro
+        cotacoes[index] = backup;
+        displayCotacoes();
+        showMessage('❌ Erro ao atualizar. Tente novamente.', 'error');
     }
 }
 
 // ==========================================
-// MARCAR COMO FECHADO (OTIMISTA)
+// MARCAR COMO FECHADO (INSTANTÂNEO)
 // ==========================================
 async function marcarFechado(id) {
     if (!confirm('Marcar este negócio como fechado?')) return;
     
-    // 1. Atualizar localmente IMEDIATAMENTE
-    const index = cotacoesCache.findIndex(c => c.id === id);
-    if (index !== -1) {
-        const backup = {...cotacoesCache[index]};
-        cotacoesCache[index].negocioFechado = true;
-        displayCotacoes();
-        showMessage('✅ Negócio marcado como fechado!', 'success');
+    const index = cotacoes.findIndex(c => c.id === id);
+    if (index === -1) return;
+    
+    // 1. Guardar backup
+    const backup = {...cotacoes[index]};
+    
+    // 2. Marcar como fechado IMEDIATAMENTE
+    cotacoes[index].negocioFechado = true;
+    
+    // 3. Atualizar interface IMEDIATAMENTE
+    displayCotacoes();
+    showMessage('✅ Negócio fechado!', 'success');
+    
+    // 4. Enviar ao servidor em BACKGROUND
+    try {
+        const response = await fetch(`${API_URL}/cotacoes/${id}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${API_TOKEN}`
+            },
+            body: JSON.stringify({ negocioFechado: true })
+        });
+
+        if (!response.ok) throw new Error('Erro ao marcar como fechado');
         
-        // 2. Enviar ao servidor em background
-        try {
-            const response = await fetch(`${API_URL}/cotacoes/${id}`, {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${API_TOKEN}`
-                },
-                body: JSON.stringify({ negocioFechado: true })
-            });
-            
-            if (!response.ok) throw new Error('Erro ao marcar como fechado');
-            
-        } catch (error) {
-            // Reverter em caso de erro
-            cotacoesCache[index] = backup;
-            displayCotacoes();
-            showMessage('Erro ao marcar como fechado', 'error');
-        }
+    } catch (error) {
+        console.error('Erro:', error);
+        // Reverter em caso de erro
+        cotacoes[index] = backup;
+        displayCotacoes();
+        showMessage('❌ Erro ao marcar. Tente novamente.', 'error');
     }
 }
 
 // ==========================================
-// EXCLUIR (OTIMISTA)
+// EXCLUIR COTAÇÃO (INSTANTÂNEO)
 // ==========================================
 async function deleteCotacao(id) {
     if (!confirm('Tem certeza que deseja excluir esta cotação?')) return;
     
-    // 1. Remover localmente IMEDIATAMENTE
-    const index = cotacoesCache.findIndex(c => c.id === id);
-    if (index !== -1) {
-        const backup = cotacoesCache[index];
-        cotacoesCache.splice(index, 1);
+    const index = cotacoes.findIndex(c => c.id === id);
+    if (index === -1) return;
+    
+    // 1. Guardar backup
+    const backup = cotacoes[index];
+    
+    // 2. Remover da lista IMEDIATAMENTE
+    cotacoes.splice(index, 1);
+    
+    // 3. Atualizar interface IMEDIATAMENTE (com animação)
+    const row = document.getElementById(`row-${id}`);
+    if (row) {
+        row.style.opacity = '0';
+        row.style.transform = 'translateX(-20px)';
+        row.style.transition = 'all 0.3s ease';
+        setTimeout(() => displayCotacoes(), 300);
+    } else {
         displayCotacoes();
-        showMessage('🗑️ Cotação excluída!', 'success');
+    }
+    
+    showMessage('🗑️ Cotação excluída!', 'success');
+    
+    // 4. Enviar ao servidor em BACKGROUND
+    try {
+        const response = await fetch(`${API_URL}/cotacoes/${id}`, {
+            method: 'DELETE',
+            headers: {
+                'Authorization': `Bearer ${API_TOKEN}`
+            }
+        });
+
+        if (!response.ok) throw new Error('Erro ao excluir do servidor');
         
-        // 2. Enviar ao servidor em background
-        try {
-            const response = await fetch(`${API_URL}/cotacoes/${id}`, {
-                method: 'DELETE',
-                headers: { 'Authorization': `Bearer ${API_TOKEN}` }
-            });
-            
-            if (!response.ok) throw new Error('Erro ao excluir');
-            
-        } catch (error) {
-            // Reverter em caso de erro
-            cotacoesCache.splice(index, 0, backup);
-            displayCotacoes();
-            showMessage('Erro ao excluir cotação', 'error');
-        }
+    } catch (error) {
+        console.error('Erro:', error);
+        // Reverter em caso de erro
+        cotacoes.splice(index, 0, backup);
+        displayCotacoes();
+        showMessage('❌ Erro ao excluir. Tente novamente.', 'error');
     }
 }
 
@@ -333,7 +368,7 @@ async function deleteCotacao(id) {
 // EDITAR COTAÇÃO
 // ==========================================
 function editCotacao(id) {
-    const cotacao = cotacoesCache.find(c => c.id === id);
+    const cotacao = cotacoes.find(c => c.id === id);
     if (!cotacao) return;
 
     document.getElementById('editId').value = id;
@@ -341,7 +376,6 @@ function editCotacao(id) {
     document.getElementById('submitText').textContent = 'Salvar Alterações';
     document.getElementById('cancelBtn').classList.remove('hidden');
 
-    // Preencher formulário
     document.getElementById('responsavelCotacao').value = cotacao.responsavelCotacao || '';
     document.getElementById('transportadora').value = cotacao.transportadora || '';
     document.getElementById('destino').value = cotacao.destino || '';
@@ -401,7 +435,7 @@ function filterCotacoes() {
     const filterTrans = document.getElementById('filterTransportadora').value;
     const filterStatus = document.getElementById('filterStatus').value;
 
-    let filtered = filterCotacoesByMonth(cotacoesCache);
+    let filtered = filterCotacoesByMonth(cotacoes);
 
     if (search) {
         filtered = filtered.filter(c =>
@@ -411,10 +445,19 @@ function filterCotacoes() {
         );
     }
 
-    if (filterResp) filtered = filtered.filter(c => c.responsavelCotacao === filterResp);
-    if (filterTrans) filtered = filtered.filter(c => c.transportadora === filterTrans);
-    if (filterStatus === 'fechado') filtered = filtered.filter(c => c.negocioFechado);
-    if (filterStatus === 'aberto') filtered = filtered.filter(c => !c.negocioFechado);
+    if (filterResp) {
+        filtered = filtered.filter(c => c.responsavelCotacao === filterResp);
+    }
+
+    if (filterTrans) {
+        filtered = filtered.filter(c => c.transportadora === filterTrans);
+    }
+
+    if (filterStatus === 'fechado') {
+        filtered = filtered.filter(c => c.negocioFechado);
+    } else if (filterStatus === 'aberto') {
+        filtered = filtered.filter(c => !c.negocioFechado);
+    }
 
     const container = document.getElementById('cotacoesContainer');
     
@@ -438,7 +481,7 @@ function filterCotacoes() {
             </thead>
             <tbody>
                 ${filtered.map(c => `
-                    <tr class="${c.negocioFechado ? 'negocio-fechado' : ''}">
+                    <tr class="${c.negocioFechado ? 'negocio-fechado' : ''}" id="row-${c.id}">
                         <td>${formatarData(c.dataCotacao)}</td>
                         <td>${c.responsavelCotacao}</td>
                         <td>${c.transportadora}</td>
@@ -484,6 +527,5 @@ document.addEventListener('DOMContentLoaded', () => {
     checkConnection();
     loadCotacoes();
     
-    // Verificar conexão a cada 30 segundos
     setInterval(checkConnection, 30000);
 });
