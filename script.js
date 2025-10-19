@@ -1,7 +1,7 @@
 // ✅ CONFIGURAÇÕES GERAIS
 const API_URL = 'https://cotacoes-frete-back.onrender.com/api/cotacoes';
 const STORAGE_KEY = 'cotacoes_frete';
-const POLLING_INTERVAL = 3000; // Verificação de atualizações a cada 3 segundos
+const POLLING_INTERVAL = 3000;
 const API_TOKEN = 'ctf_2025_Xk7mP9wL3nQ8zR5tY2jH6vB4cN1sF0gD';
 
 let cotacoes = [];
@@ -203,80 +203,95 @@ async function handleSubmit(event) {
     event.preventDefault();
 
     if (isSubmitting) {
-        console.log('Aguarde... processando requisição anterior');
         return;
     }
 
     isSubmitting = true;
     const submitBtn = document.querySelector('button[type="submit"]');
-    const originalText = submitBtn.innerHTML;
     submitBtn.disabled = true;
-    submitBtn.innerHTML = '⏳ Salvando...';
+    submitBtn.innerHTML = '<span id="submitIcon">⏳</span> <span id="submitText">Salvando...</span>';
 
     const formData = getFormData();
     const editId = document.getElementById('editId').value;
 
-    // 🚀 ATUALIZAÇÃO OTIMISTA: Atualiza UI IMEDIATAMENTE
-    let tempId = null;
-    if (editId) {
-        // Atualiza cotação existente na UI
-        const index = cotacoes.findIndex(c => c.id === editId);
-        if (index !== -1) {
-            cotacoes[index] = { ...formData, id: editId, timestamp: cotacoes[index].timestamp };
-        }
-    } else {
-        // Adiciona nova cotação na UI com ID temporário
-        tempId = 'temp_' + Date.now();
-        const novaCotacao = { ...formData, id: tempId, timestamp: new Date().toISOString() };
-        cotacoes.unshift(novaCotacao);
-    }
-    
-    // Atualiza interface IMEDIATAMENTE
-    saveToLocalStorage(cotacoes);
-    filterCotacoes();
-    resetForm();
-    showMessage(editId ? '✔ Cotação atualizada!' : '✔ Cotação registrada!', 'success');
-    
-    isSubmitting = false;
-    submitBtn.disabled = false;
-    submitBtn.innerHTML = originalText;
-
-    // 🔄 Sincroniza com servidor em SEGUNDO PLANO
-    const serverOnline = await checkServerStatus();
-    if (serverOnline) {
-        try {
-            let response;
-            if (editId) {
-                response = await fetchComAutenticacao(`${API_URL}/${editId}`, {
-                    method: 'PUT',
-                    body: JSON.stringify(formData)
-                });
-            } else {
-                response = await fetchComAutenticacao(API_URL, {
-                    method: 'POST',
-                    body: JSON.stringify(formData)
-                });
+    try {
+        // 🚀 ATUALIZAÇÃO OTIMISTA: Atualiza UI IMEDIATAMENTE
+        let tempId = null;
+        let novaCotacao = null;
+        
+        if (editId) {
+            // Atualiza cotação existente na UI
+            const index = cotacoes.findIndex(c => c.id === editId);
+            if (index !== -1) {
+                cotacoes[index] = { ...formData, id: editId, timestamp: cotacoes[index].timestamp };
             }
-
-            if (!response.ok) throw new Error('Erro ao salvar no servidor');
-            
-            // Atualiza com dados reais do servidor
-            const savedData = await response.json();
-            
-            if (tempId) {
-                // Substitui ID temporário pelo ID real
-                const index = cotacoes.findIndex(c => c.id === tempId);
-                if (index !== -1) {
-                    cotacoes[index] = savedData;
-                    saveToLocalStorage(cotacoes);
-                    filterCotacoes();
+        } else {
+            // Adiciona nova cotação na UI com ID temporário
+            tempId = 'temp_' + Date.now();
+            novaCotacao = { ...formData, id: tempId, timestamp: new Date().toISOString() };
+            cotacoes.unshift(novaCotacao);
+        }
+        
+        // Atualiza interface IMEDIATAMENTE
+        saveToLocalStorage(cotacoes);
+        filterCotacoes();
+        showMessage(editId ? '✔ Cotação atualizada!' : '✔ Cotação registrada!', 'success');
+        
+        // Reseta o formulário
+        resetForm();
+        
+        // 🔄 Sincroniza com servidor em SEGUNDO PLANO
+        const serverOnline = await checkServerStatus();
+        if (serverOnline) {
+            try {
+                let response;
+                if (editId) {
+                    response = await fetchComAutenticacao(`${API_URL}/${editId}`, {
+                        method: 'PUT',
+                        body: JSON.stringify(formData)
+                    });
+                } else {
+                    response = await fetchComAutenticacao(API_URL, {
+                        method: 'POST',
+                        body: JSON.stringify(formData)
+                    });
                 }
+
+                if (response.ok) {
+                    const savedData = await response.json();
+                    
+                    if (tempId) {
+                        // Substitui ID temporário pelo ID real do servidor
+                        const index = cotacoes.findIndex(c => c.id === tempId);
+                        if (index !== -1) {
+                            cotacoes[index] = savedData;
+                            saveToLocalStorage(cotacoes);
+                            filterCotacoes();
+                        }
+                    } else if (editId) {
+                        // Atualiza com dados do servidor
+                        const index = cotacoes.findIndex(c => c.id === editId);
+                        if (index !== -1) {
+                            cotacoes[index] = savedData;
+                            saveToLocalStorage(cotacoes);
+                            filterCotacoes();
+                        }
+                    }
+                } else {
+                    throw new Error('Erro ao salvar no servidor');
+                }
+            } catch (error) {
+                console.error('Erro ao sincronizar com servidor:', error);
+                showMessage('⚠️ Salvo localmente', 'info');
             }
-        } catch (error) {
-            console.error('Erro ao sincronizar com servidor:', error);
-            // Mantém dados locais mesmo se servidor falhar
-            showMessage('⚠️ Salvo localmente (servidor offline)', 'info');
         }
+    } catch (error) {
+        console.error('Erro:', error);
+        showMessage('❌ Erro ao processar cotação', 'error');
+    } finally {
+        isSubmitting = false;
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '<span id="submitIcon">✔</span> <span id="submitText">Registrar Cotação</span>';
     }
 }
 
