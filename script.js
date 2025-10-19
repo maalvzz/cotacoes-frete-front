@@ -1,14 +1,14 @@
 // ✅ CONFIGURAÇÕES GERAIS
 const API_URL = 'https://cotacoes-frete-back.onrender.com/api/cotacoes';
 const STORAGE_KEY = 'cotacoes_frete';
-const POLLING_INTERVAL = 5000; // Aumentado para 5 segundos
+const POLLING_INTERVAL = 3000; // Verificação de atualizações a cada 3 segundos
 const API_TOKEN = 'ctf_2025_Xk7mP9wL3nQ8zR5tY2jH6vB4cN1sF0gD';
 
 let cotacoes = [];
 let isOnline = false;
 let currentMonth = new Date().getMonth();
 let currentYear = new Date().getFullYear();
-let isSubmitting = false; // Prevenir múltiplos submits
+let isSubmitting = false;
 
 const meses = [
     'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -202,7 +202,6 @@ async function loadCotacoes() {
 async function handleSubmit(event) {
     event.preventDefault();
 
-    // Prevenir múltiplos submits
     if (isSubmitting) {
         console.log('Aguarde... processando requisição anterior');
         return;
@@ -212,57 +211,72 @@ async function handleSubmit(event) {
     const submitBtn = document.querySelector('button[type="submit"]');
     const originalText = submitBtn.innerHTML;
     submitBtn.disabled = true;
-    submitBtn.innerHTML = '⏳ Processando...';
+    submitBtn.innerHTML = '⏳ Salvando...';
 
     const formData = getFormData();
     const editId = document.getElementById('editId').value;
-    const serverOnline = await checkServerStatus();
 
-    try {
-        if (serverOnline) {
+    // 🚀 ATUALIZAÇÃO OTIMISTA: Atualiza UI IMEDIATAMENTE
+    let tempId = null;
+    if (editId) {
+        // Atualiza cotação existente na UI
+        const index = cotacoes.findIndex(c => c.id === editId);
+        if (index !== -1) {
+            cotacoes[index] = { ...formData, id: editId, timestamp: cotacoes[index].timestamp };
+        }
+    } else {
+        // Adiciona nova cotação na UI com ID temporário
+        tempId = 'temp_' + Date.now();
+        const novaCotacao = { ...formData, id: tempId, timestamp: new Date().toISOString() };
+        cotacoes.unshift(novaCotacao);
+    }
+    
+    // Atualiza interface IMEDIATAMENTE
+    saveToLocalStorage(cotacoes);
+    filterCotacoes();
+    resetForm();
+    showMessage(editId ? '✔ Cotação atualizada!' : '✔ Cotação registrada!', 'success');
+    
+    isSubmitting = false;
+    submitBtn.disabled = false;
+    submitBtn.innerHTML = originalText;
+
+    // 🔄 Sincroniza com servidor em SEGUNDO PLANO
+    const serverOnline = await checkServerStatus();
+    if (serverOnline) {
+        try {
             let response;
             if (editId) {
                 response = await fetchComAutenticacao(`${API_URL}/${editId}`, {
                     method: 'PUT',
                     body: JSON.stringify(formData)
                 });
-                showMessage('✔ Cotação atualizada!', 'success');
             } else {
                 response = await fetchComAutenticacao(API_URL, {
                     method: 'POST',
                     body: JSON.stringify(formData)
                 });
-                showMessage('✔ Cotação registrada!', 'success');
             }
 
-            if (!response.ok) throw new Error('Erro ao salvar');
+            if (!response.ok) throw new Error('Erro ao salvar no servidor');
             
-            // Aguardar um pouco antes de recarregar para evitar duplicação
-            await new Promise(resolve => setTimeout(resolve, 500));
-            await loadCotacoes();
-        } else {
-            // modo offline
-            if (editId) {
-                const index = cotacoes.findIndex(c => c.id === editId);
-                if (index !== -1) cotacoes[index] = { ...formData, id: editId, timestamp: cotacoes[index].timestamp };
-                showMessage('✔ Cotação atualizada (Offline)', 'success');
-            } else {
-                const novaCotacao = { ...formData, id: Date.now().toString(), timestamp: new Date().toISOString() };
-                cotacoes.unshift(novaCotacao);
-                showMessage('✔ Cotação salva (Offline)', 'success');
+            // Atualiza com dados reais do servidor
+            const savedData = await response.json();
+            
+            if (tempId) {
+                // Substitui ID temporário pelo ID real
+                const index = cotacoes.findIndex(c => c.id === tempId);
+                if (index !== -1) {
+                    cotacoes[index] = savedData;
+                    saveToLocalStorage(cotacoes);
+                    filterCotacoes();
+                }
             }
-            saveToLocalStorage(cotacoes);
-            filterCotacoes();
+        } catch (error) {
+            console.error('Erro ao sincronizar com servidor:', error);
+            // Mantém dados locais mesmo se servidor falhar
+            showMessage('⚠️ Salvo localmente (servidor offline)', 'info');
         }
-
-        resetForm();
-    } catch (error) {
-        console.error('Erro:', error);
-        showMessage('❌ Erro ao processar cotação', 'error');
-    } finally {
-        isSubmitting = false;
-        submitBtn.disabled = false;
-        submitBtn.innerHTML = originalText;
     }
 }
 
@@ -300,53 +314,61 @@ function editCotacao(id) {
 async function deleteCotacao(id) {
     if (!confirm('Tem certeza que deseja excluir esta cotação?')) return;
     
-    const serverOnline = await checkServerStatus();
+    // 🚀 Remove da UI IMEDIATAMENTE
+    const cotacaoBackup = cotacoes.find(c => c.id === id);
+    cotacoes = cotacoes.filter(c => c.id !== id);
+    saveToLocalStorage(cotacoes);
+    filterCotacoes();
+    showMessage('✔ Cotação excluída!', 'success');
 
-    try {
-        if (serverOnline) {
+    // 🔄 Sincroniza com servidor em SEGUNDO PLANO
+    const serverOnline = await checkServerStatus();
+    if (serverOnline) {
+        try {
             const response = await fetchComAutenticacao(`${API_URL}/${id}`, { method: 'DELETE' });
-            if (!response.ok) throw new Error('Erro ao excluir');
-            showMessage('✔ Cotação excluída!', 'success');
-            await loadCotacoes();
-        } else {
-            cotacoes = cotacoes.filter(c => c.id !== id);
-            saveToLocalStorage(cotacoes);
-            showMessage('✔ Cotação excluída (Offline)', 'success');
-            filterCotacoes();
+            if (!response.ok) throw new Error('Erro ao excluir no servidor');
+        } catch (error) {
+            console.error('Erro ao sincronizar exclusão:', error);
+            // Se falhar, restaura a cotação
+            if (cotacaoBackup) {
+                cotacoes.push(cotacaoBackup);
+                cotacoes.sort((a, b) => new Date(b.timestamp || b.dataCotacao) - new Date(a.timestamp || a.dataCotacao));
+                saveToLocalStorage(cotacoes);
+                filterCotacoes();
+                showMessage('❌ Erro ao excluir. Registro restaurado.', 'error');
+            }
         }
-    } catch (error) {
-        console.error('Erro:', error);
-        cotacoes = cotacoes.filter(c => c.id !== id);
-        saveToLocalStorage(cotacoes);
-        showMessage('⚠️ Cotação excluída localmente', 'error');
-        filterCotacoes();
     }
 }
 
 async function toggleNegocio(id) {
     const cotacao = cotacoes.find(c => c.id === id);
     if (!cotacao) return;
+    
+    // 🚀 Atualiza UI IMEDIATAMENTE
+    const estadoAnterior = cotacao.negocioFechado;
     cotacao.negocioFechado = !cotacao.negocioFechado;
+    saveToLocalStorage(cotacoes);
+    filterCotacoes();
+    showMessage(cotacao.negocioFechado ? '✔ Negócio fechado!' : '✔ Marcação removida!', 'success');
 
+    // 🔄 Sincroniza com servidor em SEGUNDO PLANO
     const serverOnline = await checkServerStatus();
-    try {
-        if (serverOnline) {
+    if (serverOnline) {
+        try {
             const response = await fetchComAutenticacao(`${API_URL}/${id}`, {
                 method: 'PUT',
                 body: JSON.stringify(cotacao)
             });
-            if (!response.ok) throw new Error('Erro ao atualizar');
-            showMessage(cotacao.negocioFechado ? '✔ Negócio fechado!' : '✔ Marcação removida!', 'success');
-            await loadCotacoes();
-        } else {
+            if (!response.ok) throw new Error('Erro ao atualizar status');
+        } catch (error) {
+            console.error('Erro ao sincronizar status:', error);
+            // Reverte se falhar
+            cotacao.negocioFechado = estadoAnterior;
             saveToLocalStorage(cotacoes);
-            showMessage(cotacao.negocioFechado ? '✔ Negócio marcado (Offline)' : '✔ Marcação removida (Offline)', 'success');
             filterCotacoes();
+            showMessage('❌ Erro ao atualizar. Status revertido.', 'error');
         }
-    } catch (error) {
-        console.error('Erro:', error);
-        saveToLocalStorage(cotacoes);
-        filterCotacoes();
     }
 }
 
@@ -480,4 +502,3 @@ function showMessage(message, type) {
         setTimeout(() => div.remove(), 300);
     }, 3000);
 }
-
