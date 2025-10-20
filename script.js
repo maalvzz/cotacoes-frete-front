@@ -7,20 +7,33 @@ function getTokenFromURL() {
 }
 
 // ==========================================
-// VERIFICAÇÃO DE TOKEN CORRIGIDA
+// VERIFICAÇÃO DE TOKEN COM SEGURANÇA
 // ==========================================
 async function verificarToken() {
-    // 1. Tentar pegar token da URL primeiro
+    // 1. Tentar pegar token da URL primeiro (prioridade máxima)
     let token = getTokenFromURL();
     
-    // 2. Se não tiver na URL, tentar pegar do sessionStorage
-    if (!token) {
-        token = sessionStorage.getItem('authToken'); // CORRIGIDO: era 'jwtToken'
-    }
-    
-    // 3. Se não tiver no sessionStorage, tentar localStorage
-    if (!token) {
-        token = localStorage.getItem('authToken'); // CORRIGIDO: era 'jwtToken'
+    // 2. Se vier da URL, limpar tokens antigos e usar apenas o novo
+    if (token) {
+        sessionStorage.clear(); // Limpa sessão antiga
+        sessionStorage.setItem('authToken', token);
+        sessionStorage.setItem('tokenTimestamp', Date.now().toString());
+        // Remove token da URL para segurança
+        window.history.replaceState({}, document.title, window.location.pathname);
+    } else {
+        // 3. Se não vier da URL, tentar pegar do sessionStorage
+        token = sessionStorage.getItem('authToken');
+        
+        // Verificar se o token tem menos de 8 horas (mesmo tempo do JWT)
+        const tokenTimestamp = sessionStorage.getItem('tokenTimestamp');
+        if (tokenTimestamp) {
+            const horasPassadas = (Date.now() - parseInt(tokenTimestamp)) / (1000 * 60 * 60);
+            if (horasPassadas > 8) {
+                // Token expirado por tempo
+                sessionStorage.clear();
+                token = null;
+            }
+        }
     }
 
     if (!token) {
@@ -29,28 +42,30 @@ async function verificarToken() {
         return false;
     }
 
-    // Salvar token para uso posterior
-    sessionStorage.setItem('authToken', token);
-    localStorage.setItem('authToken', token); // Salvar também no localStorage
-
     try {
-        // Tentativa de acessar /api/cotacoes para validar token
+        // Validar token com o servidor
         const response = await fetch('https://cotacoes-frete-back.onrender.com/api/cotacoes', {
-            headers: { 'Authorization': `Bearer ${token}` }
+            headers: { 
+                'Authorization': `Bearer ${token}`,
+                'Cache-Control': 'no-cache'
+            }
         });
 
         if (!response.ok) {
-            // Token inválido ou sem permissão
-            alert('Token inválido ou expirado! Faça login novamente.');
-            sessionStorage.removeItem('authToken');
-            localStorage.removeItem('authToken');
+            // Token inválido ou expirado no servidor
+            sessionStorage.clear();
+            alert('Sessão expirada ou token inválido! Faça login novamente.');
             window.location.href = 'https://sistema-central-front.onrender.com';
             return false;
         }
 
-        return true; // Token válido
+        // Token válido - renovar timestamp
+        sessionStorage.setItem('tokenTimestamp', Date.now().toString());
+        return true;
+        
     } catch (err) {
         console.error('Erro de autenticação:', err);
+        sessionStorage.clear();
         alert('Erro de autenticação! Redirecionando...');
         window.location.href = 'https://sistema-central-front.onrender.com';
         return false;
@@ -58,16 +73,54 @@ async function verificarToken() {
 }
 
 // ==========================================
+// VERIFICAÇÃO PERIÓDICA DE TOKEN
+// ==========================================
+function iniciarVerificacaoToken() {
+    // Verifica token a cada 5 minutos
+    setInterval(async () => {
+        const valido = await verificarToken();
+        if (!valido) {
+            // Se token inválido, redirecionar
+            return;
+        }
+    }, 5 * 60 * 1000); // 5 minutos
+}
+
+// ==========================================
+// DETECTAR QUANDO JANELA GANHA FOCO
+// ==========================================
+window.addEventListener('focus', async () => {
+    // Quando usuário volta para a aba, revalidar token
+    const token = sessionStorage.getItem('authToken');
+    if (!token) {
+        alert('Sessão expirada! Redirecionando para login...');
+        window.location.href = 'https://sistema-central-front.onrender.com';
+    }
+});
+
+// ==========================================
+// DETECTAR QUANDO SISTEMA CENTRAL FAZ LOGOUT
+// ==========================================
+window.addEventListener('storage', (e) => {
+    // Se o localStorage do sistema central for limpo, limpar aqui também
+    if (e.key === 'authToken' && e.newValue === null) {
+        sessionStorage.clear();
+        alert('Você foi desconectado do sistema.');
+        window.location.href = 'https://sistema-central-front.onrender.com';
+    }
+});
+
+// ==========================================
 // FUNÇÃO FETCH COM AUTENTICAÇÃO (CORRIGIDA)
 // ==========================================
 async function fetchComAutenticacao(url, options = {}) {
-    // Pegar token do sessionStorage ou localStorage
-    let token = sessionStorage.getItem('authToken');
-    if (!token) {
-        token = localStorage.getItem('authToken');
-    }
+    const token = sessionStorage.getItem('authToken');
     
-    if (!token) throw new Error('Token ausente');
+    if (!token) {
+        alert('Sessão expirada! Faça login novamente.');
+        window.location.href = 'https://sistema-central-front.onrender.com';
+        throw new Error('Token ausente');
+    }
 
     const headers = {
         'Content-Type': 'application/json',
@@ -75,11 +128,27 @@ async function fetchComAutenticacao(url, options = {}) {
         ...options.headers
     };
 
-    return fetch(url, {
-        ...options,
-        headers,
-        cache: 'no-cache'
-    });
+    try {
+        const response = await fetch(url, {
+            ...options,
+            headers,
+            cache: 'no-cache'
+        });
+
+        // Se retornar 401 ou 403, token inválido
+        if (response.status === 401 || response.status === 403) {
+            sessionStorage.clear();
+            alert('Sessão expirada! Faça login novamente.');
+            window.location.href = 'https://sistema-central-front.onrender.com';
+            throw new Error('Token inválido');
+        }
+
+        return response;
+    } catch (error) {
+        if (error.message === 'Token inválido') throw error;
+        // Outros erros (rede, etc)
+        throw error;
+    }
 }
 
 // ==========================================
@@ -108,6 +177,7 @@ async function iniciarModulo() {
     await loadCotacoes();
     updateMonthDisplay();
     startRealtimeSync();
+    iniciarVerificacaoToken(); // Verificação periódica de token
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
