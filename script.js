@@ -1,6 +1,3 @@
-// ==========================================
-// VERIFICAÇÃO DE TOKEN
-// ==========================================
 async function verificarToken() {
     const token = sessionStorage.getItem('jwtToken');
 
@@ -11,15 +8,16 @@ async function verificarToken() {
     }
 
     try {
-        const response = await fetch('https://cotacoes-frete-back.onrender.com/api/validate-token', {
+        // Tentativa de acessar /api/cotacoes para validar token
+        const response = await fetch('https://cotacoes-frete-back.onrender.com/api/cotacoes', {
             headers: { 'Authorization': `Bearer ${token}` }
         });
-        const data = await response.json();
 
-        if (!data.valid) {
-            alert('Token inválido! Faça login novamente.');
+        if (!response.ok) {
+            // Token inválido ou sem permissão
+            alert('Token inválido ou expirado! Faça login novamente.');
             sessionStorage.removeItem('jwtToken');
-            window.location.href = 'https://sistema-central-front-onrender.com';
+            window.location.href = 'https://sistema-central-front.onrender.com';
             return false;
         }
 
@@ -534,3 +532,4 @@ function showMessage(message, type) {
         setTimeout(() => div.remove(), 300);
     }, 3000);
 }
+
