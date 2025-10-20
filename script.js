@@ -1,8 +1,7 @@
-// ✅ CONFIGURAÇÕES GERAIS
+// ✅ CONFIGURAÇÕES GERAIS - RENDER (PRODUÇÃO)
 const API_URL = 'https://cotacoes-frete-back.onrender.com/api/cotacoes';
 const STORAGE_KEY = 'cotacoes_frete';
-const POLLING_INTERVAL = 3000;
-const API_TOKEN = 'ctf_2025_Xk7mP9wL3nQ8zR5tY2jH6vB4cN1sF0gD';
+const POLLING_INTERVAL = 5000; // 5 segundos
 
 let cotacoes = [];
 let isOnline = false;
@@ -16,19 +15,18 @@ const meses = [
 ];
 
 // ==========================================
-// FUNÇÃO AUXILIAR PARA REQUISIÇÕES COM TOKEN
+// FUNÇÃO AUXILIAR PARA REQUISIÇÕES (SEM TOKEN)
 // ==========================================
-async function fetchComAutenticacao(url, options = {}) {
+async function fetchAPI(url, options = {}) {
     const headers = {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${API_TOKEN}`,
         ...options.headers
     };
 
     return fetch(url, {
         ...options,
         headers,
-        cache: 'no-cache'
+        cache: 'no-store'
     });
 }
 
@@ -36,6 +34,7 @@ async function fetchComAutenticacao(url, options = {}) {
 // INICIALIZAÇÃO
 // ==========================================
 document.addEventListener('DOMContentLoaded', () => {
+    console.log('🚀 Aplicação iniciada - Modo Produção (Render)');
     setTodayDate();
     loadCotacoes();
     updateMonthDisplay();
@@ -64,24 +63,27 @@ function changeMonth(direction) {
 // ==========================================
 function startRealtimeSync() {
     setInterval(async () => {
-        if (isOnline && !isSubmitting) await checkForUpdates();
+        if (isOnline && !isSubmitting) {
+            await checkForUpdates();
+        }
     }, POLLING_INTERVAL);
 }
 
 async function checkForUpdates() {
     try {
-        const response = await fetchComAutenticacao(API_URL);
+        const response = await fetchAPI(API_URL);
         if (!response.ok) return;
 
         const serverData = await response.json();
         if (hasDataChanged(serverData)) {
+            console.log('📥 Dados atualizados do servidor');
             cotacoes = serverData;
             saveToLocalStorage(cotacoes);
             filterCotacoes();
             showRealtimeUpdate();
         }
     } catch (error) {
-        console.error('Erro ao verificar atualizações:', error);
+        console.error('⚠️ Erro ao verificar atualizações:', error);
     }
 }
 
@@ -93,11 +95,15 @@ function hasDataChanged(newData) {
 
     if (currentIds.size !== newIds.size) return true;
 
-    for (let id of newIds) if (!currentIds.has(id)) return true;
+    for (let id of newIds) {
+        if (!currentIds.has(id)) return true;
+    }
 
     for (let newItem of newData) {
         const oldItem = cotacoes.find(c => c.id === newItem.id);
-        if (oldItem && JSON.stringify(oldItem) !== JSON.stringify(newItem)) return true;
+        if (oldItem && JSON.stringify(oldItem) !== JSON.stringify(newItem)) {
+            return true;
+        }
     }
 
     return false;
@@ -121,14 +127,23 @@ function showRealtimeUpdate() {
 // ==========================================
 async function checkServerStatus() {
     try {
-        const response = await fetch(`${API_URL.replace('/api/cotacoes', '/health')}`, { 
+        const healthURL = API_URL.replace('/api/cotacoes', '/health');
+        const response = await fetch(healthURL, { 
             method: 'GET',
-            cache: 'no-cache'
+            cache: 'no-store'
         });
+        
         isOnline = response.ok;
         updateConnectionStatus();
+        
+        if (response.ok) {
+            const data = await response.json();
+            console.log('✅ Servidor:', data.status, '| DB:', data.database, '| Cache:', data.cache);
+        }
+        
         return isOnline;
     } catch (error) {
+        console.error('❌ Servidor offline:', error.message);
         isOnline = false;
         updateConnectionStatus();
         return false;
@@ -154,9 +169,10 @@ function updateConnectionStatus() {
 function saveToLocalStorage(data) {
     try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+        console.log(`💾 ${data.length} cotações salvas localmente`);
         return true;
     } catch (error) {
-        console.error('Erro ao salvar:', error);
+        console.error('❌ Erro ao salvar:', error);
         return false;
     }
 }
@@ -164,9 +180,11 @@ function saveToLocalStorage(data) {
 function loadFromLocalStorage() {
     try {
         const stored = localStorage.getItem(STORAGE_KEY);
-        return stored ? JSON.parse(stored) : [];
+        const data = stored ? JSON.parse(stored) : [];
+        console.log(`💾 ${data.length} cotações carregadas do localStorage`);
+        return data;
     } catch (error) {
-        console.error('Erro ao carregar:', error);
+        console.error('❌ Erro ao carregar:', error);
         return [];
     }
 }
@@ -180,22 +198,32 @@ function setTodayDate() {
 }
 
 async function loadCotacoes() {
+    console.log('📋 Carregando cotações do Render...');
     const serverOnline = await checkServerStatus();
+    
     try {
         if (serverOnline) {
-            const response = await fetchComAutenticacao(API_URL);
-            if (!response.ok) throw new Error('Erro ao carregar cotações');
+            console.log('🌐 Buscando do servidor Render...');
+            const response = await fetchAPI(API_URL);
+            
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            
             cotacoes = await response.json();
+            console.log(`✅ ${cotacoes.length} cotações carregadas do Render`);
             saveToLocalStorage(cotacoes);
         } else {
+            console.log('💾 Servidor offline - usando dados locais');
             cotacoes = loadFromLocalStorage();
         }
+        
         filterCotacoes();
     } catch (error) {
-        console.error('Erro:', error);
+        console.error('❌ Erro ao carregar:', error);
         cotacoes = loadFromLocalStorage();
         filterCotacoes();
-        showMessage('⚠️ Modo offline ativo', 'info');
+        showMessage('⚠️ Modo offline - usando dados locais', 'info');
     }
 }
 
@@ -203,95 +231,81 @@ async function handleSubmit(event) {
     event.preventDefault();
 
     if (isSubmitting) {
+        console.log('⏳ Submissão já em andamento');
         return;
     }
 
     isSubmitting = true;
     const submitBtn = document.querySelector('button[type="submit"]');
+    const originalHTML = submitBtn.innerHTML;
     submitBtn.disabled = true;
-    submitBtn.innerHTML = '<span id="submitIcon">⏳</span> <span id="submitText">Salvando...</span>';
+    submitBtn.innerHTML = '<span>⏳</span> <span>Salvando...</span>';
 
     const formData = getFormData();
     const editId = document.getElementById('editId').value;
 
+    console.log('📝 Enviando para Render:', formData);
+
     try {
-        // 🚀 ATUALIZAÇÃO OTIMISTA: Atualiza UI IMEDIATAMENTE
-        let tempId = null;
-        let novaCotacao = null;
+        const serverOnline = await checkServerStatus();
         
+        if (!serverOnline) {
+            throw new Error('Servidor offline');
+        }
+
+        let response;
+        let url;
+        let method;
+
         if (editId) {
-            // Atualiza cotação existente na UI
+            url = `${API_URL}/${editId}`;
+            method = 'PUT';
+            console.log(`✏️ Atualizando cotação ${editId}...`);
+        } else {
+            url = API_URL;
+            method = 'POST';
+            console.log('➕ Criando nova cotação...');
+        }
+
+        response = await fetchAPI(url, {
+            method: method,
+            body: JSON.stringify(formData)
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error('❌ Erro do servidor:', errorText);
+            throw new Error(`HTTP ${response.status}: ${errorText}`);
+        }
+
+        const savedData = await response.json();
+        console.log('✅ Salvo no Render:', savedData);
+
+        // Atualiza array local
+        if (editId) {
             const index = cotacoes.findIndex(c => c.id === editId);
             if (index !== -1) {
-                cotacoes[index] = { ...formData, id: editId, timestamp: cotacoes[index].timestamp };
+                cotacoes[index] = savedData;
             }
         } else {
-            // Adiciona nova cotação na UI com ID temporário
-            tempId = 'temp_' + Date.now();
-            novaCotacao = { ...formData, id: tempId, timestamp: new Date().toISOString() };
-            cotacoes.unshift(novaCotacao);
+            cotacoes.unshift(savedData);
         }
-        
-        // Atualiza interface IMEDIATAMENTE
+
         saveToLocalStorage(cotacoes);
         filterCotacoes();
-        showMessage(editId ? '✔ Cotação atualizada!' : '✔ Cotação registrada!', 'success');
-        
-        // Reseta o formulário
+        showMessage(editId ? '✅ Cotação atualizada!' : '✅ Cotação registrada!', 'success');
         resetForm();
-        
-        // 🔄 Sincroniza com servidor em SEGUNDO PLANO
-        const serverOnline = await checkServerStatus();
-        if (serverOnline) {
-            try {
-                let response;
-                if (editId) {
-                    response = await fetchComAutenticacao(`${API_URL}/${editId}`, {
-                        method: 'PUT',
-                        body: JSON.stringify(formData)
-                    });
-                } else {
-                    response = await fetchComAutenticacao(API_URL, {
-                        method: 'POST',
-                        body: JSON.stringify(formData)
-                    });
-                }
 
-                if (response.ok) {
-                    const savedData = await response.json();
-                    
-                    if (tempId) {
-                        // Substitui ID temporário pelo ID real do servidor
-                        const index = cotacoes.findIndex(c => c.id === tempId);
-                        if (index !== -1) {
-                            cotacoes[index] = savedData;
-                            saveToLocalStorage(cotacoes);
-                            filterCotacoes();
-                        }
-                    } else if (editId) {
-                        // Atualiza com dados do servidor
-                        const index = cotacoes.findIndex(c => c.id === editId);
-                        if (index !== -1) {
-                            cotacoes[index] = savedData;
-                            saveToLocalStorage(cotacoes);
-                            filterCotacoes();
-                        }
-                    }
-                } else {
-                    throw new Error('Erro ao salvar no servidor');
-                }
-            } catch (error) {
-                console.error('Erro ao sincronizar com servidor:', error);
-                showMessage('⚠️ Salvo localmente', 'info');
-            }
-        }
+        // Recarrega do servidor para garantir sincronização
+        setTimeout(() => loadCotacoes(), 1000);
+
     } catch (error) {
-        console.error('Erro:', error);
-        showMessage('❌ Erro ao processar cotação', 'error');
+        console.error('❌ Erro ao salvar:', error);
+        showMessage('❌ Erro ao salvar. Verifique sua conexão.', 'error');
     } finally {
         isSubmitting = false;
         submitBtn.disabled = false;
-        submitBtn.innerHTML = '<span id="submitIcon">✔</span> <span id="submitText">Registrar Cotação</span>';
+        submitBtn.innerHTML = originalHTML;
     }
 }
 
@@ -300,7 +314,12 @@ async function handleSubmit(event) {
 // ==========================================
 function editCotacao(id) {
     const cotacao = cotacoes.find(c => c.id === id);
-    if (!cotacao) return;
+    if (!cotacao) {
+        console.error('❌ Cotação não encontrada:', id);
+        return;
+    }
+
+    console.log('✏️ Editando cotação:', id);
 
     document.getElementById('editId').value = id;
     document.getElementById('responsavelCotacao').value = cotacao.responsavelCotacao;
@@ -329,30 +348,35 @@ function editCotacao(id) {
 async function deleteCotacao(id) {
     if (!confirm('Tem certeza que deseja excluir esta cotação?')) return;
     
-    // 🚀 Remove da UI IMEDIATAMENTE
-    const cotacaoBackup = cotacoes.find(c => c.id === id);
-    cotacoes = cotacoes.filter(c => c.id !== id);
-    saveToLocalStorage(cotacoes);
-    filterCotacoes();
-    showMessage('✔ Cotação excluída!', 'success');
+    console.log('🗑️ Deletando cotação:', id);
 
-    // 🔄 Sincroniza com servidor em SEGUNDO PLANO
-    const serverOnline = await checkServerStatus();
-    if (serverOnline) {
-        try {
-            const response = await fetchComAutenticacao(`${API_URL}/${id}`, { method: 'DELETE' });
-            if (!response.ok) throw new Error('Erro ao excluir no servidor');
-        } catch (error) {
-            console.error('Erro ao sincronizar exclusão:', error);
-            // Se falhar, restaura a cotação
-            if (cotacaoBackup) {
-                cotacoes.push(cotacaoBackup);
-                cotacoes.sort((a, b) => new Date(b.timestamp || b.dataCotacao) - new Date(a.timestamp || a.dataCotacao));
-                saveToLocalStorage(cotacoes);
-                filterCotacoes();
-                showMessage('❌ Erro ao excluir. Registro restaurado.', 'error');
-            }
+    try {
+        const serverOnline = await checkServerStatus();
+        
+        if (!serverOnline) {
+            throw new Error('Servidor offline');
         }
+
+        const response = await fetchAPI(`${API_URL}/${id}`, { method: 'DELETE' });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+        
+        console.log('✅ Exclusão confirmada no Render');
+        
+        // Remove da UI
+        cotacoes = cotacoes.filter(c => c.id !== id);
+        saveToLocalStorage(cotacoes);
+        filterCotacoes();
+        showMessage('✅ Cotação excluída!', 'success');
+        
+        // Recarrega do servidor
+        setTimeout(() => loadCotacoes(), 1000);
+        
+    } catch (error) {
+        console.error('❌ Erro ao excluir:', error);
+        showMessage('❌ Erro ao excluir. Verifique sua conexão.', 'error');
     }
 }
 
@@ -360,30 +384,44 @@ async function toggleNegocio(id) {
     const cotacao = cotacoes.find(c => c.id === id);
     if (!cotacao) return;
     
-    // 🚀 Atualiza UI IMEDIATAMENTE
+    console.log('🔄 Alterando status:', id);
+
     const estadoAnterior = cotacao.negocioFechado;
     cotacao.negocioFechado = !cotacao.negocioFechado;
-    saveToLocalStorage(cotacoes);
-    filterCotacoes();
-    showMessage(cotacao.negocioFechado ? '✔ Negócio fechado!' : '✔ Marcação removida!', 'success');
-
-    // 🔄 Sincroniza com servidor em SEGUNDO PLANO
-    const serverOnline = await checkServerStatus();
-    if (serverOnline) {
-        try {
-            const response = await fetchComAutenticacao(`${API_URL}/${id}`, {
-                method: 'PUT',
-                body: JSON.stringify(cotacao)
-            });
-            if (!response.ok) throw new Error('Erro ao atualizar status');
-        } catch (error) {
-            console.error('Erro ao sincronizar status:', error);
-            // Reverte se falhar
-            cotacao.negocioFechado = estadoAnterior;
-            saveToLocalStorage(cotacoes);
-            filterCotacoes();
-            showMessage('❌ Erro ao atualizar. Status revertido.', 'error');
+    
+    try {
+        const serverOnline = await checkServerStatus();
+        
+        if (!serverOnline) {
+            throw new Error('Servidor offline');
         }
+
+        const response = await fetchAPI(`${API_URL}/${id}`, {
+            method: 'PUT',
+            body: JSON.stringify(cotacao)
+        });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+        
+        console.log('✅ Status sincronizado no Render');
+        
+        saveToLocalStorage(cotacoes);
+        filterCotacoes();
+        showMessage(cotacao.negocioFechado ? '✅ Negócio fechado!' : '✅ Marcação removida!', 'success');
+        
+        // Recarrega do servidor
+        setTimeout(() => loadCotacoes(), 1000);
+        
+    } catch (error) {
+        console.error('❌ Erro ao atualizar status:', error);
+        
+        // Reverte se falhar
+        cotacao.negocioFechado = estadoAnterior;
+        saveToLocalStorage(cotacoes);
+        filterCotacoes();
+        showMessage('❌ Erro ao atualizar. Tente novamente.', 'error');
     }
 }
 
@@ -413,7 +451,7 @@ function resetForm() {
     document.getElementById('cotacaoForm').reset();
     document.getElementById('editId').value = '';
     document.getElementById('formTitle').textContent = 'Nova Cotação';
-    document.getElementById('submitIcon').textContent = '✔';
+    document.getElementById('submitIcon').textContent = '✓';
     document.getElementById('submitText').textContent = 'Registrar Cotação';
     document.getElementById('cancelBtn').classList.add('hidden');
     setTodayDate();
@@ -482,7 +520,7 @@ function renderCotacoes(filtered) {
             <tbody>
                 ${filtered.map(c => `
                     <tr class="${c.negocioFechado ? 'negocio-fechado' : ''}">
-                        <td><button class="small ${c.negocioFechado ? 'success' : 'secondary'}" onclick="toggleNegocio('${c.id}')">✔</button></td>
+                        <td><button class="small ${c.negocioFechado ? 'success' : 'secondary'}" onclick="toggleNegocio('${c.id}')">✓</button></td>
                         <td><span class="badge ${c.negocioFechado ? 'fechado' : ''}">${c.responsavelCotacao}</span></td>
                         <td>${c.transportadora}</td><td>${c.destino || 'Não Informado'}</td>
                         <td>${c.numeroCotacao}</td><td class="valor">R$ ${c.valorFrete.toFixed(2)}</td>
@@ -508,13 +546,15 @@ function formatDate(dateString) {
 
 function showMessage(message, type) {
     const div = document.createElement('div');
-    div.className = `message ${type}`;
+    div.className = `status-message ${type}`;
     div.textContent = message;
-    document.body.appendChild(div);
-    setTimeout(() => div.classList.add('show'), 100);
+    
+    const statusContainer = document.getElementById('statusMessage');
+    statusContainer.className = `status-message ${type}`;
+    statusContainer.textContent = message;
+    statusContainer.classList.remove('hidden');
+    
     setTimeout(() => {
-        div.classList.remove('show');
-        setTimeout(() => div.remove(), 300);
-    }, 3000);
+        statusContainer.classList.add('hidden');
+    }, 4000);
 }
-
