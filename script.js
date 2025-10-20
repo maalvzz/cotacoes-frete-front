@@ -97,7 +97,7 @@ function hasDataChanged(newData) {
 function showRealtimeUpdate() {
     const notification = document.createElement('div');
     notification.className = 'realtime-notification';
-    notification.innerHTML = '✅ Dados atualizados';
+    notification.innerHTML = 'Dados atualizados';
     document.body.appendChild(notification);
 
     setTimeout(() => notification.classList.add('show'), 100);
@@ -186,7 +186,7 @@ async function loadCotacoes() {
         console.error('Erro:', error);
         cotacoes = loadFromLocalStorage();
         filterCotacoes();
-        showMessage('⚠️ Modo offline ativo', 'info');
+        showMessage('Modo offline ativo', 'info');
     }
 }
 
@@ -201,7 +201,7 @@ async function handleSubmit(event) {
     isSubmitting = true;
     const submitBtn = document.querySelector('button[type="submit"]');
     submitBtn.disabled = true;
-    submitBtn.innerHTML = '<span id="submitIcon">⏳</span> <span id="submitText">Salvando...</span>';
+    submitBtn.innerHTML = '<span id="submitIcon"></span> <span id="submitText">Salvando...</span>';
 
     const formData = getFormData();
     const editId = document.getElementById('editId').value;
@@ -221,7 +221,7 @@ async function handleSubmit(event) {
 
         saveToLocalStorage(cotacoes);
         filterCotacoes();
-        showMessage(editId ? '✅ Cotação atualizada!' : '✅ Cotação registrada!', 'success');
+        showMessage(editId ? 'Cotação atualizada!' : 'Cotação registrada!', 'success');
         resetForm();
 
         const serverOnline = await checkServerStatus();
@@ -262,12 +262,12 @@ async function handleSubmit(event) {
                 } else throw new Error('Erro ao salvar no servidor');
             } catch (error) {
                 console.error('Erro ao sincronizar com servidor:', error);
-                showMessage('⚠️ Salvo localmente', 'info');
+                showMessage('Salvo localmente', 'info');
             }
         }
     } catch (error) {
         console.error('Erro:', error);
-        showMessage('❌ Erro ao processar cotação', 'error');
+        showMessage('Erro ao processar cotação', 'error');
     } finally {
         isSubmitting = false;
         submitBtn.disabled = false;
@@ -298,7 +298,7 @@ function editCotacao(id) {
     document.getElementById('observacoes').value = cotacao.observacoes || '';
 
     document.getElementById('formTitle').textContent = 'Editar Cotação';
-    document.getElementById('submitIcon').textContent = '✏️';
+    document.getElementById('submitIcon').textContent = '';
     document.getElementById('submitText').textContent = 'Atualizar Cotação';
     document.getElementById('cancelBtn').classList.remove('hidden');
     document.getElementById('formCard').classList.remove('hidden');
@@ -313,7 +313,7 @@ async function deleteCotacao(id) {
     cotacoes = cotacoes.filter(c => c.id !== id);
     saveToLocalStorage(cotacoes);
     filterCotacoes();
-    showMessage('✅ Cotação excluída!', 'success');
+    showMessage('Cotação excluída!', 'success');
 
     const serverOnline = await checkServerStatus();
     if (serverOnline) {
@@ -327,7 +327,7 @@ async function deleteCotacao(id) {
                 cotacoes.sort((a, b) => new Date(b.timestamp || b.dataCotacao) - new Date(a.timestamp || a.dataCotacao));
                 saveToLocalStorage(cotacoes);
                 filterCotacoes();
-                showMessage('❌ Erro ao excluir. Registro restaurado.', 'error');
+                showMessage('Erro ao excluir. Registro restaurado.', 'error');
             }
         }
     }
@@ -341,7 +341,7 @@ async function toggleNegocio(id) {
     cotacao.negocioFechado = !cotacao.negocioFechado;
     saveToLocalStorage(cotacoes);
     filterCotacoes();
-    showMessage(cotacao.negocioFechado ? '✅ Negócio fechado!' : '✅ Marcação removida!', 'success');
+    showMessage(cotacao.negocioFechado ? 'Negócio fechado!' : 'Marcação removida!', 'success');
 
     const serverOnline = await checkServerStatus();
     if (serverOnline) {
@@ -357,7 +357,7 @@ async function toggleNegocio(id) {
             cotacao.negocioFechado = estadoAnterior;
             saveToLocalStorage(cotacoes);
             filterCotacoes();
-            showMessage('❌ Erro ao atualizar. Status revertido.', 'error');
+            showMessage('Erro ao atualizar. Status revertido.', 'error');
         }
     }
 }
@@ -400,7 +400,7 @@ function toggleForm() {
     const formCard = document.getElementById('formCard');
     const button = event.currentTarget;
     formCard.classList.toggle('hidden');
-    button.textContent = formCard.classList.contains('hidden') ? '➕ Nova Cotação' : '❌ Ocultar Formulário';
+    button.textContent = formCard.classList.contains('hidden') ? 'Nova Cotação' : 'Ocultar Formulário';
     if (!formCard.classList.contains('hidden')) window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
@@ -468,8 +468,8 @@ function renderCotacoes(filtered) {
                         <td>${c.previsaoEntrega}</td><td>${c.codigoColeta}</td>
                         <td>${formatDate(c.dataCotacao)}</td>
                         <td class="actions">
-                            <button class="small secondary" onclick="editCotacao('${c.id}')">✏️ Editar</button>
-                            <button class="small danger" onclick="deleteCotacao('${c.id}')">🗑️ Excluir</button>
+                            <button class="small secondary" onclick="editCotacao('${c.id}')">Editar</button>
+                            <button class="small danger" onclick="deleteCotacao('${c.id}')">Excluir</button>
                         </td>
                     </tr>
                     ${c.observacoes ? `<tr class="observacoes-row ${c.negocioFechado ? 'negocio-fechado' : ''}"><td colspan="12"><strong>📝 Observações:</strong> ${c.observacoes}</td></tr>` : ''}
@@ -495,3 +495,4 @@ function showMessage(message, type) {
         setTimeout(() => div.remove(), 300);
     }, 3000);
 }
+
