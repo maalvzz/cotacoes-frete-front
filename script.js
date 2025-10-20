@@ -1,8 +1,63 @@
-// ✅ CONFIGURAÇÕES GERAIS
+// ==========================================
+// VERIFICAÇÃO DE TOKEN
+// ==========================================
+async function verificarToken() {
+    const token = sessionStorage.getItem('jwtToken');
+
+    if (!token) {
+        alert('Acesso negado! Faça login no sistema central.');
+        window.location.href = 'https://sistema-central-front.onrender.com';
+        return false;
+    }
+
+    try {
+        const response = await fetch('https://cotacoes-frete-back.onrender.com/api/validate-token', {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const data = await response.json();
+
+        if (!data.valid) {
+            alert('Token inválido! Faça login novamente.');
+            sessionStorage.removeItem('jwtToken');
+            window.location.href = 'https://sistema-central-front-onrender.com';
+            return false;
+        }
+
+        return true; // Token válido
+    } catch (err) {
+        console.error('Erro de autenticação:', err);
+        alert('Erro de autenticação! Redirecionando...');
+        window.location.href = 'https://sistema-central-front.onrender.com';
+        return false;
+    }
+}
+
+// ==========================================
+// FUNÇÃO FETCH COM AUTENTICAÇÃO
+// ==========================================
+async function fetchComAutenticacao(url, options = {}) {
+    const token = sessionStorage.getItem('jwtToken');
+    if (!token) throw new Error('Token ausente');
+
+    const headers = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+        ...options.headers
+    };
+
+    return fetch(url, {
+        ...options,
+        headers,
+        cache: 'no-cache'
+    });
+}
+
+// ==========================================
+// CONFIGURAÇÕES GERAIS
+// ==========================================
 const API_URL = 'https://cotacoes-frete-back.onrender.com/api/cotacoes';
 const STORAGE_KEY = 'cotacoes_frete';
 const POLLING_INTERVAL = 3000;
-const API_TOKEN = 'ctf_2025_Xk7mP9wL3nQ8zR5tY2jH6vB4cN1sF0gD';
 
 let cotacoes = [];
 let isOnline = false;
@@ -16,32 +71,24 @@ const meses = [
 ];
 
 // ==========================================
-// FUNÇÃO AUXILIAR PARA REQUISIÇÕES COM TOKEN
-// ==========================================
-async function fetchComAutenticacao(url, options = {}) {
-    const headers = {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${API_TOKEN}`,
-        ...options.headers
-    };
-
-    return fetch(url, {
-        ...options,
-        headers,
-        cache: 'no-cache'
-    });
-}
-
-// ==========================================
 // INICIALIZAÇÃO
 // ==========================================
-document.addEventListener('DOMContentLoaded', () => {
+async function iniciarModulo() {
     setTodayDate();
-    loadCotacoes();
+    await loadCotacoes();
     updateMonthDisplay();
     startRealtimeSync();
+}
+
+document.addEventListener('DOMContentLoaded', async () => {
+    const valido = await verificarToken();
+    if (!valido) return;
+    iniciarModulo();
 });
 
+// ==========================================
+// FUNÇÕES DE INTERFACE DE MÊS
+// ==========================================
 function updateMonthDisplay() {
     document.getElementById('currentMonth').textContent = `${meses[currentMonth]} ${currentYear}`;
 }
@@ -117,7 +164,7 @@ function showRealtimeUpdate() {
 }
 
 // ==========================================
-// VERIFICAÇÃO DE STATUS DO SERVIDOR
+// STATUS DO SERVIDOR
 // ==========================================
 async function checkServerStatus() {
     try {
@@ -199,12 +246,13 @@ async function loadCotacoes() {
     }
 }
 
+// ==========================================
+// SUBMISSÃO DO FORMULÁRIO
+// ==========================================
 async function handleSubmit(event) {
     event.preventDefault();
 
-    if (isSubmitting) {
-        return;
-    }
+    if (isSubmitting) return;
 
     isSubmitting = true;
     const submitBtn = document.querySelector('button[type="submit"]');
@@ -215,71 +263,43 @@ async function handleSubmit(event) {
     const editId = document.getElementById('editId').value;
 
     try {
-        // 🚀 ATUALIZAÇÃO OTIMISTA: Atualiza UI IMEDIATAMENTE
         let tempId = null;
         let novaCotacao = null;
-        
+
         if (editId) {
-            // Atualiza cotação existente na UI
             const index = cotacoes.findIndex(c => c.id === editId);
-            if (index !== -1) {
-                cotacoes[index] = { ...formData, id: editId, timestamp: cotacoes[index].timestamp };
-            }
+            if (index !== -1) cotacoes[index] = { ...formData, id: editId, timestamp: cotacoes[index].timestamp };
         } else {
-            // Adiciona nova cotação na UI com ID temporário
             tempId = 'temp_' + Date.now();
             novaCotacao = { ...formData, id: tempId, timestamp: new Date().toISOString() };
             cotacoes.unshift(novaCotacao);
         }
-        
-        // Atualiza interface IMEDIATAMENTE
+
         saveToLocalStorage(cotacoes);
         filterCotacoes();
         showMessage(editId ? '✔ Cotação atualizada!' : '✔ Cotação registrada!', 'success');
-        
-        // Reseta o formulário
         resetForm();
-        
-        // 🔄 Sincroniza com servidor em SEGUNDO PLANO
+
         const serverOnline = await checkServerStatus();
         if (serverOnline) {
             try {
                 let response;
                 if (editId) {
-                    response = await fetchComAutenticacao(`${API_URL}/${editId}`, {
-                        method: 'PUT',
-                        body: JSON.stringify(formData)
-                    });
+                    response = await fetchComAutenticacao(`${API_URL}/${editId}`, { method: 'PUT', body: JSON.stringify(formData) });
                 } else {
-                    response = await fetchComAutenticacao(API_URL, {
-                        method: 'POST',
-                        body: JSON.stringify(formData)
-                    });
+                    response = await fetchComAutenticacao(API_URL, { method: 'POST', body: JSON.stringify(formData) });
                 }
 
                 if (response.ok) {
                     const savedData = await response.json();
-                    
                     if (tempId) {
-                        // Substitui ID temporário pelo ID real do servidor
                         const index = cotacoes.findIndex(c => c.id === tempId);
-                        if (index !== -1) {
-                            cotacoes[index] = savedData;
-                            saveToLocalStorage(cotacoes);
-                            filterCotacoes();
-                        }
+                        if (index !== -1) { cotacoes[index] = savedData; saveToLocalStorage(cotacoes); filterCotacoes(); }
                     } else if (editId) {
-                        // Atualiza com dados do servidor
                         const index = cotacoes.findIndex(c => c.id === editId);
-                        if (index !== -1) {
-                            cotacoes[index] = savedData;
-                            saveToLocalStorage(cotacoes);
-                            filterCotacoes();
-                        }
+                        if (index !== -1) { cotacoes[index] = savedData; saveToLocalStorage(cotacoes); filterCotacoes(); }
                     }
-                } else {
-                    throw new Error('Erro ao salvar no servidor');
-                }
+                } else throw new Error('Erro ao salvar no servidor');
             } catch (error) {
                 console.error('Erro ao sincronizar com servidor:', error);
                 showMessage('⚠️ Salvo localmente', 'info');
@@ -296,7 +316,7 @@ async function handleSubmit(event) {
 }
 
 // ==========================================
-// CRUD: EDIÇÃO / EXCLUSÃO / STATUS
+// CRUD / STATUS
 // ==========================================
 function editCotacao(id) {
     const cotacao = cotacoes.find(c => c.id === id);
@@ -328,15 +348,13 @@ function editCotacao(id) {
 
 async function deleteCotacao(id) {
     if (!confirm('Tem certeza que deseja excluir esta cotação?')) return;
-    
-    // 🚀 Remove da UI IMEDIATAMENTE
+
     const cotacaoBackup = cotacoes.find(c => c.id === id);
     cotacoes = cotacoes.filter(c => c.id !== id);
     saveToLocalStorage(cotacoes);
     filterCotacoes();
     showMessage('✔ Cotação excluída!', 'success');
 
-    // 🔄 Sincroniza com servidor em SEGUNDO PLANO
     const serverOnline = await checkServerStatus();
     if (serverOnline) {
         try {
@@ -344,7 +362,6 @@ async function deleteCotacao(id) {
             if (!response.ok) throw new Error('Erro ao excluir no servidor');
         } catch (error) {
             console.error('Erro ao sincronizar exclusão:', error);
-            // Se falhar, restaura a cotação
             if (cotacaoBackup) {
                 cotacoes.push(cotacaoBackup);
                 cotacoes.sort((a, b) => new Date(b.timestamp || b.dataCotacao) - new Date(a.timestamp || a.dataCotacao));
@@ -359,15 +376,13 @@ async function deleteCotacao(id) {
 async function toggleNegocio(id) {
     const cotacao = cotacoes.find(c => c.id === id);
     if (!cotacao) return;
-    
-    // 🚀 Atualiza UI IMEDIATAMENTE
+
     const estadoAnterior = cotacao.negocioFechado;
     cotacao.negocioFechado = !cotacao.negocioFechado;
     saveToLocalStorage(cotacoes);
     filterCotacoes();
     showMessage(cotacao.negocioFechado ? '✔ Negócio fechado!' : '✔ Marcação removida!', 'success');
 
-    // 🔄 Sincroniza com servidor em SEGUNDO PLANO
     const serverOnline = await checkServerStatus();
     if (serverOnline) {
         try {
@@ -378,7 +393,6 @@ async function toggleNegocio(id) {
             if (!response.ok) throw new Error('Erro ao atualizar status');
         } catch (error) {
             console.error('Erro ao sincronizar status:', error);
-            // Reverte se falhar
             cotacao.negocioFechado = estadoAnterior;
             saveToLocalStorage(cotacoes);
             filterCotacoes();
@@ -388,7 +402,7 @@ async function toggleNegocio(id) {
 }
 
 // ==========================================
-// INTERFACE E UTILITÁRIOS
+// FORMULÁRIO / UTILITÁRIOS
 // ==========================================
 function getFormData() {
     return {
@@ -429,6 +443,9 @@ function toggleForm() {
     if (!formCard.classList.contains('hidden')) window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
+// ==========================================
+// FILTROS / RENDERIZAÇÃO
+// ==========================================
 function filterCotacoes() {
     const searchTerm = document.getElementById('search').value.toLowerCase();
     const filterResp = document.getElementById('filterResponsavel').value;
