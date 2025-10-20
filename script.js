@@ -517,3 +517,4 @@ function showMessage(message, type) {
         setTimeout(() => div.remove(), 300);
     }, 3000);
 }
+
