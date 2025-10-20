@@ -183,7 +183,7 @@ function hasDataChanged(newData) {
 function showRealtimeUpdate() {
     const notification = document.createElement('div');
     notification.className = 'realtime-notification';
-    notification.innerHTML = '✅ Dados atualizados';
+    notification.innerHTML = 'Dados atualizados';
     document.body.appendChild(notification);
 
     setTimeout(() => notification.classList.add('show'), 100);
@@ -272,7 +272,7 @@ async function loadCotacoes() {
         console.error('Erro:', error);
         cotacoes = loadFromLocalStorage();
         filterCotacoes();
-        showMessage('⚠️ Modo offline ativo', 'info');
+        showMessage('Modo offline ativo', 'info');
     }
 }
 
@@ -287,7 +287,7 @@ async function handleSubmit(event) {
     isSubmitting = true;
     const submitBtn = document.querySelector('button[type="submit"]');
     submitBtn.disabled = true;
-    submitBtn.innerHTML = '<span id="submitIcon">⏳</span> <span id="submitText">Salvando...</span>';
+    submitBtn.innerHTML = '<span id="submitIcon"></span> <span id="submitText">Salvando...</span>';
 
     const formData = getFormData();
     const editId = document.getElementById('editId').value;
@@ -537,8 +537,8 @@ function renderCotacoes(filtered) {
                         <td>${c.previsaoEntrega}</td><td>${c.codigoColeta}</td>
                         <td>${formatDate(c.dataCotacao)}</td>
                         <td class="actions">
-                            <button class="small secondary" onclick="editCotacao('${c.id}')">✏️</button>
-                            <button class="small danger" onclick="deleteCotacao('${c.id}')">🗑️</button>
+                            <button class="small secondary" onclick="editCotacao('${c.id}')">Editar</button>
+                            <button class="small danger" onclick="deleteCotacao('${c.id}')">Excluir</button>
                         </td>
                     </tr>
                     ${c.observacoes ? `<tr class="observacoes-row ${c.negocioFechado ? 'negocio-fechado' : ''}"><td colspan="12"><strong>📝 Observações:</strong> ${c.observacoes}</td></tr>` : ''}
@@ -564,3 +564,4 @@ function showMessage(message, type) {
         setTimeout(() => div.remove(), 300);
     }, 3000);
 }
+
