@@ -1,88 +1,4 @@
 // ==========================================
-// FUNÇÃO PARA EXTRAIR TOKEN DA URL
-// ==========================================
-function getTokenFromURL() {
-    const urlParams = new URLSearchParams(window.location.search);
-    return urlParams.get('token');
-}
-
-// ==========================================
-// VERIFICAÇÃO DE TOKEN CORRIGIDA
-// ==========================================
-async function verificarToken() {
-    // 1. Tentar pegar token da URL primeiro
-    let token = getTokenFromURL();
-    
-    // 2. Se não tiver na URL, tentar pegar do sessionStorage
-    if (!token) {
-        token = sessionStorage.getItem('authToken'); // CORRIGIDO: era 'jwtToken'
-    }
-    
-    // 3. Se não tiver no sessionStorage, tentar localStorage
-    if (!token) {
-        token = localStorage.getItem('authToken'); // CORRIGIDO: era 'jwtToken'
-    }
-
-    if (!token) {
-        alert('Acesso negado! Faça login no sistema central.');
-        window.location.href = 'https://sistema-central-front.onrender.com';
-        return false;
-    }
-
-    // Salvar token para uso posterior
-    sessionStorage.setItem('authToken', token);
-    localStorage.setItem('authToken', token); // Salvar também no localStorage
-
-    try {
-        // Tentativa de acessar /api/cotacoes para validar token
-        const response = await fetch('https://cotacoes-frete-back.onrender.com/api/cotacoes', {
-            headers: { 'Authorization': `Bearer ${token}` }
-        });
-
-        if (!response.ok) {
-            // Token inválido ou sem permissão
-            alert('Token inválido ou expirado! Faça login novamente.');
-            sessionStorage.removeItem('authToken');
-            localStorage.removeItem('authToken');
-            window.location.href = 'https://sistema-central-front.onrender.com';
-            return false;
-        }
-
-        return true; // Token válido
-    } catch (err) {
-        console.error('Erro de autenticação:', err);
-        alert('Erro de autenticação! Redirecionando...');
-        window.location.href = 'https://sistema-central-front.onrender.com';
-        return false;
-    }
-}
-
-// ==========================================
-// FUNÇÃO FETCH COM AUTENTICAÇÃO (CORRIGIDA)
-// ==========================================
-async function fetchComAutenticacao(url, options = {}) {
-    // Pegar token do sessionStorage ou localStorage
-    let token = sessionStorage.getItem('authToken');
-    if (!token) {
-        token = localStorage.getItem('authToken');
-    }
-    
-    if (!token) throw new Error('Token ausente');
-
-    const headers = {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
-        ...options.headers
-    };
-
-    return fetch(url, {
-        ...options,
-        headers,
-        cache: 'no-cache'
-    });
-}
-
-// ==========================================
 // CONFIGURAÇÕES GERAIS
 // ==========================================
 const API_URL = 'https://cotacoes-frete-back.onrender.com/api/cotacoes';
@@ -110,9 +26,7 @@ async function iniciarModulo() {
     startRealtimeSync();
 }
 
-document.addEventListener('DOMContentLoaded', async () => {
-    const valido = await verificarToken();
-    if (!valido) return;
+document.addEventListener('DOMContentLoaded', () => {
     iniciarModulo();
 });
 
@@ -147,7 +61,7 @@ function startRealtimeSync() {
 
 async function checkForUpdates() {
     try {
-        const response = await fetchComAutenticacao(API_URL);
+        const response = await fetch(API_URL, { cache: 'no-cache' });
         if (!response.ok) return;
 
         const serverData = await response.json();
@@ -183,7 +97,7 @@ function hasDataChanged(newData) {
 function showRealtimeUpdate() {
     const notification = document.createElement('div');
     notification.className = 'realtime-notification';
-    notification.innerHTML = 'Dados atualizados';
+    notification.innerHTML = '✅ Dados atualizados';
     document.body.appendChild(notification);
 
     setTimeout(() => notification.classList.add('show'), 100);
@@ -260,7 +174,7 @@ async function loadCotacoes() {
     const serverOnline = await checkServerStatus();
     try {
         if (serverOnline) {
-            const response = await fetchComAutenticacao(API_URL);
+            const response = await fetch(API_URL, { cache: 'no-cache' });
             if (!response.ok) throw new Error('Erro ao carregar cotações');
             cotacoes = await response.json();
             saveToLocalStorage(cotacoes);
@@ -272,7 +186,7 @@ async function loadCotacoes() {
         console.error('Erro:', error);
         cotacoes = loadFromLocalStorage();
         filterCotacoes();
-        showMessage('Modo offline ativo', 'info');
+        showMessage('⚠️ Modo offline ativo', 'info');
     }
 }
 
@@ -287,7 +201,7 @@ async function handleSubmit(event) {
     isSubmitting = true;
     const submitBtn = document.querySelector('button[type="submit"]');
     submitBtn.disabled = true;
-    submitBtn.innerHTML = '<span id="submitIcon"></span> <span id="submitText">Salvando...</span>';
+    submitBtn.innerHTML = '<span id="submitIcon">⏳</span> <span id="submitText">Salvando...</span>';
 
     const formData = getFormData();
     const editId = document.getElementById('editId').value;
@@ -307,7 +221,7 @@ async function handleSubmit(event) {
 
         saveToLocalStorage(cotacoes);
         filterCotacoes();
-        showMessage(editId ? '✔ Cotação atualizada!' : '✔ Cotação registrada!', 'success');
+        showMessage(editId ? '✅ Cotação atualizada!' : '✅ Cotação registrada!', 'success');
         resetForm();
 
         const serverOnline = await checkServerStatus();
@@ -315,19 +229,35 @@ async function handleSubmit(event) {
             try {
                 let response;
                 if (editId) {
-                    response = await fetchComAutenticacao(`${API_URL}/${editId}`, { method: 'PUT', body: JSON.stringify(formData) });
+                    response = await fetch(`${API_URL}/${editId}`, { 
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(formData)
+                    });
                 } else {
-                    response = await fetchComAutenticacao(API_URL, { method: 'POST', body: JSON.stringify(formData) });
+                    response = await fetch(API_URL, { 
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(formData)
+                    });
                 }
 
                 if (response.ok) {
                     const savedData = await response.json();
                     if (tempId) {
                         const index = cotacoes.findIndex(c => c.id === tempId);
-                        if (index !== -1) { cotacoes[index] = savedData; saveToLocalStorage(cotacoes); filterCotacoes(); }
+                        if (index !== -1) { 
+                            cotacoes[index] = savedData; 
+                            saveToLocalStorage(cotacoes); 
+                            filterCotacoes(); 
+                        }
                     } else if (editId) {
                         const index = cotacoes.findIndex(c => c.id === editId);
-                        if (index !== -1) { cotacoes[index] = savedData; saveToLocalStorage(cotacoes); filterCotacoes(); }
+                        if (index !== -1) { 
+                            cotacoes[index] = savedData; 
+                            saveToLocalStorage(cotacoes); 
+                            filterCotacoes(); 
+                        }
                     }
                 } else throw new Error('Erro ao salvar no servidor');
             } catch (error) {
@@ -383,12 +313,12 @@ async function deleteCotacao(id) {
     cotacoes = cotacoes.filter(c => c.id !== id);
     saveToLocalStorage(cotacoes);
     filterCotacoes();
-    showMessage('✔ Cotação excluída!', 'success');
+    showMessage('✅ Cotação excluída!', 'success');
 
     const serverOnline = await checkServerStatus();
     if (serverOnline) {
         try {
-            const response = await fetchComAutenticacao(`${API_URL}/${id}`, { method: 'DELETE' });
+            const response = await fetch(`${API_URL}/${id}`, { method: 'DELETE' });
             if (!response.ok) throw new Error('Erro ao excluir no servidor');
         } catch (error) {
             console.error('Erro ao sincronizar exclusão:', error);
@@ -411,13 +341,14 @@ async function toggleNegocio(id) {
     cotacao.negocioFechado = !cotacao.negocioFechado;
     saveToLocalStorage(cotacoes);
     filterCotacoes();
-    showMessage(cotacao.negocioFechado ? '✔ Negócio fechado!' : '✔ Marcação removida!', 'success');
+    showMessage(cotacao.negocioFechado ? '✅ Negócio fechado!' : '✅ Marcação removida!', 'success');
 
     const serverOnline = await checkServerStatus();
     if (serverOnline) {
         try {
-            const response = await fetchComAutenticacao(`${API_URL}/${id}`, {
+            const response = await fetch(`${API_URL}/${id}`, {
                 method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(cotacao)
             });
             if (!response.ok) throw new Error('Erro ao atualizar status');
@@ -469,7 +400,7 @@ function toggleForm() {
     const formCard = document.getElementById('formCard');
     const button = event.currentTarget;
     formCard.classList.toggle('hidden');
-    button.textContent = formCard.classList.contains('hidden') ? 'Nova Cotação' : 'Ocultar Formulário';
+    button.textContent = formCard.classList.contains('hidden') ? '➕ Nova Cotação' : '❌ Ocultar Formulário';
     if (!formCard.classList.contains('hidden')) window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
@@ -537,8 +468,8 @@ function renderCotacoes(filtered) {
                         <td>${c.previsaoEntrega}</td><td>${c.codigoColeta}</td>
                         <td>${formatDate(c.dataCotacao)}</td>
                         <td class="actions">
-                            <button class="small secondary" onclick="editCotacao('${c.id}')">Editar</button>
-                            <button class="small danger" onclick="deleteCotacao('${c.id}')">Excluir</button>
+                            <button class="small secondary" onclick="editCotacao('${c.id}')">✏️ Editar</button>
+                            <button class="small danger" onclick="deleteCotacao('${c.id}')">🗑️ Excluir</button>
                         </td>
                     </tr>
                     ${c.observacoes ? `<tr class="observacoes-row ${c.negocioFechado ? 'negocio-fechado' : ''}"><td colspan="12"><strong>📝 Observações:</strong> ${c.observacoes}</td></tr>` : ''}
@@ -564,4 +495,3 @@ function showMessage(message, type) {
         setTimeout(() => div.remove(), 300);
     }, 3000);
 }
-
