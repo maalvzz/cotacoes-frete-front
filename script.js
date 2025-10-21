@@ -464,7 +464,6 @@ function renderCotacoes(filtered) {
                             <button class="small danger" onclick="deleteCotacao('${c.id}')">Excluir</button>
                         </td>
                     </tr>
-                    ${c.observacoes ? `<tr class="observacoes-row ${c.negocioFechado ? 'negocio-fechado' : ''}"><td colspan="12"><strong>📝 Observações:</strong> ${c.observacoes}</td></tr>` : ''}
                 `).join('')}
             </tbody>
         </table>`;
@@ -487,4 +486,5 @@ function showMessage(message, type) {
         setTimeout(() => div.remove(), 300);
     }, 3000);
 }
+
 
