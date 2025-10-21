@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cotações de Frete</title>
+    <title>Cotacoes de Frete</title>
     <link rel="stylesheet" href="styles.css">
     <link rel="icon" type="image/png" href="/favicon.png">
 </head>
@@ -12,7 +12,7 @@
         <div class="header">
             <div style="display: flex; align-items: center; gap: 1rem;">
                 <div>
-                    <h1>Cotações de Frete</h1>
+                    <h1>Cotacoes de Frete</h1>
                 </div>
             </div>
             <div id="connectionStatus" class="connection-status offline">
@@ -22,20 +22,20 @@
         </div>
 
         <button onclick="toggleForm()" style="margin-bottom: 1rem;">
-            Nova Cotação
+            Nova Cotacao
         </button>
 
         <div id="statusMessage" class="hidden"></div>
 
         <div class="card hidden" id="formCard">
             <h2>
-                <span id="formTitle">Nova Cotação</span>
+                <span id="formTitle">Nova Cotacao</span>
             </h2>
             <form id="cotacaoForm" onsubmit="handleSubmit(event)">
                 <input type="hidden" id="editId">
                 <div class="form-grid">
                     <div class="form-group">
-                        <label for="responsavelCotacao">Responsável pela Cotação *</label>
+                        <label for="responsavelCotacao">Responsavel pela Cotacao *</label>
                         <select id="responsavelCotacao" required>
                             <option value="">Selecione...</option>
                             <option value="Roberto">Roberto</option>
@@ -58,13 +58,13 @@
                     </div>
 
                     <div class="form-group">
-                        <label for="destino">Destino (Município - Estado) *</label>
-                        <input type="text" id="destino" placeholder="Ex: São Paulo - SP" required>
+                        <label for="destino">Destino (Municipio - Estado) *</label>
+                        <input type="text" id="destino" placeholder="Ex: Sao Paulo - SP" required>
                     </div>
 
                     <div class="form-group">
-                        <label for="numeroCotacao">Número da Cotação</label>
-                        <input type="text" id="numeroCotacao" placeholder="Deixe vazio se não informado">
+                        <label for="numeroCotacao">Numero da Cotacao</label>
+                        <input type="text" id="numeroCotacao" placeholder="Deixe vazio se nao informado">
                     </div>
 
                     <div class="form-group">
@@ -88,40 +88,40 @@
                     </div>
 
                     <div class="form-group">
-                        <label for="previsaoEntrega">Previsão de Entrega</label>
+                        <label for="previsaoEntrega">Previsao de Entrega</label>
                         <input type="date" id="previsaoEntrega">
                     </div>
 
                     <div class="form-group">
-                        <label for="canalComunicacao">Canal de Comunicação</label>
+                        <label for="canalComunicacao">Canal de Comunicacao</label>
                         <input type="text" id="canalComunicacao" placeholder="Ex: WhatsApp, E-mail, Telefone">
                     </div>
 
                     <div class="form-group">
-                        <label for="codigoColeta">Código de Coleta</label>
-                        <input type="text" id="codigoColeta" placeholder="Deixe vazio se não informado">
+                        <label for="codigoColeta">Codigo de Coleta</label>
+                        <input type="text" id="codigoColeta" placeholder="Deixe vazio se nao informado">
                     </div>
 
                     <div class="form-group">
-                        <label for="responsavelTransportadora">Responsável da Transportadora</label>
+                        <label for="responsavelTransportadora">Responsavel da Transportadora</label>
                         <input type="text" id="responsavelTransportadora" placeholder="Nome do contato">
                     </div>
 
                     <div class="form-group">
-                        <label for="dataCotacao">Data da Cotação *</label>
+                        <label for="dataCotacao">Data da Cotacao *</label>
                         <input type="date" id="dataCotacao" required>
                     </div>
 
                     <div class="form-group">
-                        <label for="observacoes">Observações</label>
-                        <textarea id="observacoes" placeholder="Informações adicionais..."></textarea>
+                        <label for="observacoes">Observacoes</label>
+                        <textarea id="observacoes" placeholder="Informacoes adicionais..."></textarea>
                     </div>
                 </div>
 
                 <div style="margin-top: 1.5rem;">
                     <button type="submit">
                         <span id="submitIcon">✓</span>
-                        <span id="submitText">Registrar Cotação</span>
+                        <span id="submitText">Registrar Cotacao</span>
                     </button>
                     <button type="button" class="secondary hidden" id="cancelBtn" onclick="cancelEdit()">
                         ✕ Cancelar
@@ -134,7 +134,7 @@
             <div class="month-selector">
                 <button onclick="changeMonth(-1)">Anterior</button>
                 <span id="currentMonth"></span>
-                <button onclick="changeMonth(1)">Próximo</button>
+                <button onclick="changeMonth(1)">Proximo</button>
             </div>
 
             <div class="filter-section">
@@ -144,7 +144,7 @@
                 </div>
 
                 <div class="form-group">
-                    <label for="filterResponsavel">Filtrar por Responsável</label>
+                    <label for="filterResponsavel">Filtrar por Responsavel</label>
                     <select id="filterResponsavel" onchange="filterCotacoes()">
                         <option value="">Todos</option>
                         <option value="Roberto">Roberto</option>
@@ -170,7 +170,7 @@
                     <label for="filterStatus">Filtrar por Status</label>
                     <select id="filterStatus" onchange="filterCotacoes()">
                         <option value="">Todos</option>
-                        <option value="fechado">Negócios Fechados</option>
+                        <option value="fechado">Negocios Fechados</option>
                         <option value="aberto">Em Aberto</option>
                     </select>
                 </div>
@@ -178,7 +178,7 @@
         </div>
 
         <div class="card">
-            <h2>📋 Cotações Registradas</h2>
+            <h2>Cotacoes Registradas</h2>
             <div class="table-container">
                 <div id="cotacoesContainer"></div>
             </div>
