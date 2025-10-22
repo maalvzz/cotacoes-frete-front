@@ -1,38 +1,4 @@
-/* ============================================
-   VARIÁVEIS BASE (DARK THEME - PADRÃO)
-   ============================================ */
 :root {
-    --primary: #CC7000;
-    --primary-light: #E68A00;
-    --primary-dark: #B36200;
-    --bg-primary: #30303000;
-    --bg-secondary: #000000;
-    --bg-card: #1A1A1A;
-    --text-primary: #FFFFFF;
-    --text-secondary: #A0A0A0;
-    --border-color: rgba(204, 112, 0, 0.08);
-    --input-bg: #2A2A2A;
-    --success-color: #22C55E;
-    --table-stripe: #1F1F1F;
-    --table-hover: rgba(204, 112, 0, 0.05);
-    --card-shadow: none;
-    --th-bg: rgba(204, 112, 0, 0.03);
-    --th-color: #E68A00;
-    --th-border: rgba(204, 112, 0, 0.15);
-    --status-border: rgba(255, 255, 255, 0.1);
-    --month-bg: #1A1A1A;
-    --month-border: #2A2A2A;
-    --month-btn-bg: #2A2A2A;
-    --month-btn-border: #3A3A3A;
-    --month-btn-hover: #3A3A3A;
-    --table-bg: #2A2A2A;
-}
-
-/* ============================================
-   LIGHT THEME (quando navegador está em light mode)
-   ============================================ */
-@media (prefers-color-scheme: light) {
-    :root {
         --bg-primary: #FFFFFF;
         --bg-secondary: #F5F5F5;
         --bg-card: #FFFFFF;
@@ -71,7 +37,7 @@ body {
 }
 
 .container {
-    max-width: 1600px;
+    max-width: 1800px;
     margin: 2rem auto;
     padding: 0 1.5rem;
 }
