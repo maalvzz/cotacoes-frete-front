@@ -6,6 +6,7 @@ let cotacoes = [];
 let isOnline = false;
 let currentMonth = new Date().getMonth();
 let currentYear = new Date().getFullYear();
+let isSubmitting = false;
 let lastSyncTime = null;
 
 const meses = [
@@ -38,8 +39,10 @@ function changeMonth(direction) {
 }
 
 function startRealtimeSync() {
-    setInterval(() => {
-        checkForUpdates();
+    setInterval(async () => {
+        if (isOnline && !isSubmitting) {
+            await checkForUpdates();
+        }
     }, POLLING_INTERVAL);
 }
 
@@ -173,65 +176,82 @@ async function loadCotacoes() {
     }
 }
 
-function handleSubmit(event) {
+async function handleSubmit(event) {
     event.preventDefault();
+
+    if (isSubmitting) return;
+
+    isSubmitting = true;
+    const submitBtn = document.querySelector('button[type="submit"]');
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<span id="submitIcon"></span> <span id="submitText">Salvando...</span>';
 
     const formData = getFormData();
     const editId = document.getElementById('editId').value;
 
-    // Salvar localmente de forma instantânea
-    let tempId = null;
-    
-    if (editId) {
-        const index = cotacoes.findIndex(c => c.id === editId);
-        if (index !== -1) {
-            cotacoes[index] = { ...formData, id: editId, timestamp: cotacoes[index].timestamp };
-        }
-    } else {
-        tempId = 'temp_' + Date.now();
-        const novaCotacao = { ...formData, id: tempId, timestamp: new Date().toISOString() };
-        cotacoes.unshift(novaCotacao);
-    }
-    
-    saveToLocalStorage(cotacoes);
-    filterCotacoes();
-    showMessage(editId ? 'Cotação atualizada!' : 'Cotação registrada!', 'success');
-    resetForm();
-    
-    // Sincronizar com servidor em segundo plano (não aguarda)
-    setTimeout(() => syncToServer(formData, editId, tempId), 0);
-}
-
-function syncToServer(formData, editId, tempId) {
-    checkServerStatus().then(serverOnline => {
-        if (!serverOnline) return;
-
-        const url = editId ? `${API_URL}/${editId}` : API_URL;
-        const method = editId ? 'PUT' : 'POST';
-
-        fetch(url, {
-            method: method,
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(formData)
-        })
-        .then(response => {
-            if (response.ok) return response.json();
-            throw new Error('Erro na sincronização');
-        })
-        .then(savedData => {
-            if (tempId) {
-                const index = cotacoes.findIndex(c => c.id === tempId);
-                if (index !== -1) {
-                    cotacoes[index] = savedData;
-                    saveToLocalStorage(cotacoes);
-                    filterCotacoes();
-                }
+    try {
+        let tempId = null;
+        let novaCotacao = null;
+        
+        if (editId) {
+            const index = cotacoes.findIndex(c => c.id === editId);
+            if (index !== -1) {
+                cotacoes[index] = { ...formData, id: editId, timestamp: cotacoes[index].timestamp };
             }
-        })
-        .catch(error => {
-            console.error('Erro ao sincronizar com servidor:', error);
-        });
-    });
+        } else {
+            tempId = 'temp_' + Date.now();
+            novaCotacao = { ...formData, id: tempId, timestamp: new Date().toISOString() };
+            cotacoes.unshift(novaCotacao);
+        }
+        
+        saveToLocalStorage(cotacoes);
+        filterCotacoes();
+        showMessage(editId ? 'Cotacao atualizada!' : 'Cotacao registrada!', 'success');
+        resetForm();
+        
+        const serverOnline = await checkServerStatus();
+        if (serverOnline) {
+            try {
+                let response;
+                if (editId) {
+                    response = await fetch(`${API_URL}/${editId}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(formData)
+                    });
+                } else {
+                    response = await fetch(API_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(formData)
+                    });
+                }
+
+                if (response.ok) {
+                    const savedData = await response.json();
+                    
+                    if (tempId) {
+                        const index = cotacoes.findIndex(c => c.id === tempId);
+                        if (index !== -1) {
+                            cotacoes[index] = savedData;
+                            saveToLocalStorage(cotacoes);
+                            filterCotacoes();
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error('Erro ao sincronizar:', error);
+                showMessage('Salvo localmente', 'info');
+            }
+        }
+    } catch (error) {
+        console.error('Erro:', error);
+        showMessage('Erro ao processar cotacao', 'error');
+    } finally {
+        isSubmitting = false;
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '<span id="submitIcon">✔</span> <span id="submitText">Registrar Cotacao</span>';
+    }
 }
 
 function editCotacao(id) {
@@ -339,7 +359,7 @@ function resetForm() {
     document.getElementById('cotacaoForm').reset();
     document.getElementById('editId').value = '';
     document.getElementById('formTitle').textContent = 'Nova Cotacao';
-    document.getElementById('submitIcon').textContent = '✓';
+    document.getElementById('submitIcon').textContent = '✔';
     document.getElementById('submitText').textContent = 'Registrar Cotacao';
     document.getElementById('cancelBtn').classList.add('hidden');
     setTodayDate();
@@ -408,7 +428,7 @@ function renderCotacoes(filtered) {
             <tbody>
                 ${filtered.map(c => `
                     <tr class="${c.negocioFechado ? 'negocio-fechado' : ''}">
-                        <td><button class="small ${c.negocioFechado ? 'success' : 'secondary'}" onclick="toggleNegocio('${c.id}')">✓</button></td>
+                        <td><button class="small ${c.negocioFechado ? 'success' : 'secondary'}" onclick="toggleNegocio('${c.id}')">✔</button></td>
                         <td><span class="badge ${c.negocioFechado ? 'fechado' : ''}">${c.responsavelCotacao}</span></td>
                         <td>${c.transportadora}</td><td>${c.destino || 'Nao Informado'}</td>
                         <td>${c.numeroCotacao}</td><td class="valor">R$ ${c.valorFrete.toFixed(2)}</td>
