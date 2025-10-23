@@ -1,39 +1,28 @@
 :root {
-        --bg-primary: #FFFFFF;
-        --bg-secondary: #F5F5F5;
-        --bg-card: #FFFFFF;
-        --text-primary: #1A1A1A;
-        --text-secondary: #6B7280;
-        --border-color: #E5E7EB;
-        --input-bg: #F9FAFB;
-        --table-stripe: #FAFAFA;
-        --table-hover: rgba(204, 112, 0, 0.05);
-        --card-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-        --th-bg: #F9FAFB;
-        --th-color: #6B7280;
-        --th-border: #E5E7EB;
-        --status-border: #E5E7EB;
-        --month-bg: #FFFFFF;
-        --month-border: #E5E7EB;
-        --month-btn-bg: #F3F4F6;
-        --month-btn-border: #E5E7EB;
-        --month-btn-hover: #E5E7EB;
-        --table-bg: #FFFFFF;
-    }
+    --primary: #CC7000;
+    --primary-light: #E68A00;
+    --primary-dark: #B36200;
+    --bg-primary: #FFFFFF;
+    --bg-secondary: #F5F5F5;
+    --bg-card: #FFFFFF;
+    --text-primary: #1A1A1A;
+    --text-secondary: #6B7280;
+    --border-color: rgba(204, 112, 0, 0.15);
+    --input-bg: #F9FAFB;
+    --success-color: #22C55E;
 }
 
 * {
-    margin: 3;
+    margin: 0;
     padding: 0;
     box-sizing: border-box;
 }
 
 body {
     font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
-    background: var(--bg-secondary);
+    background: #F5F5F5;
     color: var(--text-primary);
     line-height: 1.6;
-    transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 .container {
@@ -47,9 +36,9 @@ body {
     padding: 1.5rem;
     border-radius: 12px;
     margin-bottom: 1.5rem;
-    border: 1px solid var(--border-color);
-    transition: all 0.2s ease;
-    box-shadow: var(--card-shadow);
+    border: 1px solid #E5E7EB;
+    transition: border-color 0.2s ease;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
 }
 
 .card:hover {
@@ -68,7 +57,7 @@ body {
 h1 {
     font-size: 2rem;
     font-weight: 700;
-    color: var(--text-primary);
+    color: #1A1A1A;
     letter-spacing: -0.5px;
 }
 
@@ -89,17 +78,19 @@ h2 {
     border-radius: 8px;
     font-size: 0.85rem;
     font-weight: 600;
-    border: 1px solid var(--status-border);
+    border: 1px solid #E5E7EB;
 }
 
 .connection-status.online {
-    background: rgba(34, 197, 94, 0.15);
-    color: var(--success-color);
+    background: rgba(34, 197, 94, 0.1);
+    color: #16A34A;
+    border-color: rgba(34, 197, 94, 0.3);
 }
 
 .connection-status.offline {
-    background: rgba(239, 68, 68, 0.15);
-    color: #EF4444;
+    background: rgba(239, 68, 68, 0.1);
+    color: #DC2626;
+    border-color: rgba(239, 68, 68, 0.3);
 }
 
 .status-dot {
@@ -131,7 +122,7 @@ label {
 input, select, textarea {
     width: 100%;
     padding: 12px 16px;
-    border: 1px solid var(--border-color);
+    border: 1px solid #E5E7EB;
     border-radius: 8px;
     background: var(--input-bg);
     color: var(--text-primary);
@@ -176,11 +167,11 @@ button:active {
 }
 
 button.secondary {
-    background: #4B5563;
+    background: #6B7280;
 }
 
 button.secondary:hover {
-    background: #6B7280;
+    background: #4B5563;
 }
 
 button.danger {
@@ -222,6 +213,7 @@ table {
     border-spacing: 0;
     border-radius: 8px;
     overflow: hidden;
+    background: white;
 }
 
 th, td {
@@ -230,36 +222,36 @@ th, td {
 }
 
 th {
-    background: var(--th-bg);
-    color: var(--th-color);
+    background: #F9FAFB;
+    color: #6B7280;
     font-weight: 700;
     font-size: 0.85rem;
     text-transform: uppercase;
     letter-spacing: 1px;
-    border-bottom: 1px solid var(--th-border);
+    border-bottom: 2px solid #E5E7EB;
 }
 
 tbody tr {
-    background: var(--table-bg);
-    border-bottom: 1px solid var(--border-color);
+    background: #FFFFFF;
+    border-bottom: 1px solid #F3F4F6;
     transition: background 0.2s ease;
 }
 
 tbody tr:nth-child(even) {
-    background: var(--table-stripe);
+    background: #FAFAFA;
 }
 
 tbody tr:hover {
-    background: var(--table-hover);
+    background: rgba(204, 112, 0, 0.05);
 }
 
 tbody tr.negocio-fechado {
-    background: rgba(34, 197, 94, 0.1) !important;
+    background: rgba(34, 197, 94, 0.08) !important;
     border-left: 3px solid var(--success-color);
 }
 
 tbody tr.negocio-fechado:hover {
-    background: rgba(34, 197, 94, 0.2) !important;
+    background: rgba(34, 197, 94, 0.15) !important;
 }
 
 td {
@@ -279,15 +271,15 @@ td {
     border-radius: 20px;
     font-size: 0.8rem;
     font-weight: 600;
-    background: rgba(204, 112, 0, 0.08);
-    color: #E68A00;
-    border: 1px solid rgba(204, 112, 0, 0.15);
+    background: rgba(204, 112, 0, 0.1);
+    color: #B36200;
+    border: 1px solid rgba(204, 112, 0, 0.2);
 }
 
 .badge.fechado {
-    background: rgba(34, 197, 94, 0.2);
-    color: var(--success-color);
-    border: 1px solid rgba(34, 197, 94, 0.3);
+    background: rgba(34, 197, 94, 0.1);
+    color: #16A34A;
+    border: 1px solid rgba(34, 197, 94, 0.2);
 }
 
 .message {
@@ -306,20 +298,20 @@ td {
 }
 
 .status-message.success {
-    background: rgba(34, 197, 94, 0.15);
-    color: var(--success-color);
+    background: rgba(34, 197, 94, 0.1);
+    color: #16A34A;
     border-color: rgba(34, 197, 94, 0.3);
 }
 
 .status-message.error {
-    background: rgba(239, 68, 68, 0.15);
-    color: #EF4444;
+    background: rgba(239, 68, 68, 0.1);
+    color: #DC2626;
     border-color: rgba(239, 68, 68, 0.3);
 }
 
 .status-message.info {
-    background: rgba(59, 130, 246, 0.15);
-    color: #3B82F6;
+    background: rgba(59, 130, 246, 0.1);
+    color: #2563EB;
     border-color: rgba(59, 130, 246, 0.3);
 }
 
@@ -339,16 +331,16 @@ td {
     gap: 1rem;
     justify-content: center;
     padding: 1rem;
-    background: var(--month-bg);
+    background: #FFFFFF;
     border-radius: 8px;
-    border: 1px solid var(--month-border);
+    border: 1px solid #E5E7EB;
     margin-bottom: 1.5rem;
 }
 
 .month-selector button {
-    background: var(--month-btn-bg);
-    color: var(--text-primary);
-    border: 1px solid var(--month-btn-border);
+    background: #F3F4F6;
+    color: #1A1A1A;
+    border: 1px solid #E5E7EB;
     padding: 10px 20px;
     border-radius: 6px;
     cursor: pointer;
@@ -357,8 +349,8 @@ td {
 }
 
 .month-selector button:hover {
-    background: var(--month-btn-hover);
-    border-color: var(--primary);
+    background: #E5E7EB;
+    border-color: #CC7000;
 }
 
 .month-selector span {
@@ -366,7 +358,7 @@ td {
     font-weight: 600;
     min-width: 200px;
     text-align: center;
-    color: var(--text-primary);
+    color: #1A1A1A;
 }
 
 .realtime-notification {
@@ -378,6 +370,7 @@ td {
     padding: 1rem 1.5rem;
     border-radius: 8px;
     border: 1px solid rgba(255, 255, 255, 0.2);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
     z-index: 10000;
     opacity: 0;
     transform: translateX(400px);
